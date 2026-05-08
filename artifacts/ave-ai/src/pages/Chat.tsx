@@ -102,7 +102,7 @@ export function Chat({ onBack }: ChatProps) {
           </div>
         </div>
       ) : (
-        <MessageList messages={messages} />
+        <MessageList messages={messages} onSend={handleSend} />
       )}
 
       <ChatInput

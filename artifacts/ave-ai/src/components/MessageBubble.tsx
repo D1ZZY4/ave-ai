@@ -6,6 +6,9 @@ import { Copy, Check } from "lucide-react";
 import { useState } from "react";
 import type { Message } from "../store/chat";
 import { ActivityLog } from "./ActivityLog";
+import { ChoiceCards } from "./ChoiceCards";
+import { QuestionForm } from "./QuestionForm";
+import { parseResponse } from "../helpers/parse-response";
 import { useSettings } from "../store/settings";
 import { cn } from "@/lib/utils";
 
@@ -28,9 +31,12 @@ function CopyButton({ text }: { text: string }) {
 
 interface MessageBubbleProps {
   message: Message;
+  onSend: (content: string) => void;
+  isLastMessage: boolean;
+  globalStreaming: boolean;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, onSend, isLastMessage, globalStreaming }: MessageBubbleProps) {
   const { settings } = useSettings();
   const isUser = message.role === "user";
 
@@ -48,9 +54,28 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const hasContent = !!message.content;
   const isGenerating = isStreaming && !hasContent;
 
+  // Only parse the last assistant message once it's done streaming
+  const canParse = isLastMessage && !isStreaming && hasContent;
+  const parsed = canParse ? parseResponse(message.content) : null;
+  const hasInteractiveBlock = parsed && parsed.blockType !== "none";
+
+  // Choices/questions can only be interacted with if nothing is streaming
+  const interactionDisabled = globalStreaming;
+
+  const handleChoiceSelect = (label: string) => {
+    onSend(label);
+  };
+
+  const handleQuestionSubmit = (answers: string) => {
+    onSend(answers);
+  };
+
+  // What text to render as markdown
+  const renderContent = hasInteractiveBlock ? parsed!.prose : message.content;
+
   return (
     <div className="mb-4 msg-appear">
-      {/* Activity log (process + thinking) */}
+      {/* Activity log */}
       {message.steps && message.steps.length > 0 && (
         <ActivityLog
           steps={message.steps}
@@ -59,14 +84,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         />
       )}
 
-      {/* Response content */}
+      {/* Prose content */}
       {hasContent ? (
-        <div
-          className={cn(
-            "prose prose-sm max-w-none",
-            isStreaming && "typing-cursor"
-          )}
-        >
+        <div className={cn("prose prose-sm max-w-none", isStreaming && "typing-cursor")}>
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -134,13 +154,25 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                   </blockquote>
                 );
               },
+              table({ children }) {
+                return (
+                  <div className="overflow-x-auto my-2">
+                    <table className="text-[12px] border-collapse w-full">{children}</table>
+                  </div>
+                );
+              },
+              th({ children }) {
+                return <th className="border border-[hsl(260_18%_20%)] px-2.5 py-1.5 text-left font-semibold text-[hsl(270_20%_90%)] bg-[hsl(260_20%_12%)]">{children}</th>;
+              },
+              td({ children }) {
+                return <td className="border border-[hsl(260_18%_18%)] px-2.5 py-1.5 text-[hsl(270_20%_82%)]">{children}</td>;
+              },
             }}
           >
-            {message.content}
+            {renderContent}
           </ReactMarkdown>
         </div>
       ) : isGenerating ? (
-        /* Dots while no content yet */
         <div className="flex gap-1 py-1">
           {[0, 1, 2].map((i) => (
             <span
@@ -151,6 +183,29 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           ))}
         </div>
       ) : null}
+
+      {/* Interactive block — rendered AFTER prose, replacing the list */}
+      {hasInteractiveBlock && !isStreaming && (
+        <>
+          {(parsed!.blockType === "choices" || parsed!.blockType === "confirm") && (
+            <ChoiceCards
+              choices={parsed!.choices}
+              onSelect={handleChoiceSelect}
+              disabled={interactionDisabled}
+              type={parsed!.blockType}
+            />
+          )}
+
+          {parsed!.blockType === "questions" && (
+            <QuestionForm
+              prose={parsed!.prose}
+              questions={parsed!.questions}
+              onSubmit={handleQuestionSubmit}
+              disabled={interactionDisabled}
+            />
+          )}
+        </>
+      )}
     </div>
   );
 }
