@@ -1,13 +1,15 @@
 /**
- * Response Parser
+ * Response Parser — finds interactive blocks anywhere in the AI response.
  *
- * Scans AI output for structured patterns and extracts them
- * so the UI can render them as interactive elements instead of plain text.
+ * Strategy: find the LAST contiguous list block in the response.
+ * It doesn't have to be the very last line — models often add a closing
+ * sentence after a list ("Which would you prefer?"). We handle that.
  *
- * Patterns detected:
- * - CHOICES block: numbered list at end of response → clickable option cards
- * - QUESTIONS block: numbered questions → interactive input form
- * - CONFIRM block: yes/no or short confirmation → confirm buttons
+ * Block types detected:
+ *   "choices"   → numbered or bulleted options  → ChoiceCards
+ *   "questions" → numbered questions (60%+ end with ?)  → QuestionForm
+ *   "confirm"   → exactly 2 items (yes/no, lanjut/batal) → confirm buttons
+ *   "none"      → no interactive block found
  */
 
 export interface ParsedChoice {
@@ -19,156 +21,150 @@ export interface ParsedChoice {
 export interface ParsedQuestion {
   index: number;
   question: string;
-  hint?: string;
 }
 
 export type ParsedBlockType = "choices" | "questions" | "confirm" | "none";
 
 export interface ParsedResponse {
   prose: string;
+  afterText: string;
   blockType: ParsedBlockType;
   choices: ParsedChoice[];
   questions: ParsedQuestion[];
 }
 
-// Matches lines like: "1. **Label** — description" or "1. Label" or "- Label"
-const NUMBERED_ITEM = /^(\d+)\.\s+(?:\*\*(.+?)\*\*(?:\s*[—–-]\s*(.+))?|(.+))$/;
-const QUESTION_LINE = /^(\d+)\.\s+(.+\?)$/;
+const LIST_ITEM_RE = /^(?:(\d+)[.)]\s+|[-*•]\s+)(.+)$/;
+
+function isListLine(line: string): boolean {
+  return LIST_ITEM_RE.test(line.trim());
+}
+
+function extractLabel(line: string): string {
+  return line.trim().replace(/^(?:\d+[.)]\s+|[-*•]\s+)/, "").trim();
+}
 
 /**
- * Try to extract a numbered list block from the END of the text.
- * Returns { items, trimmedText } or null if no list found.
+ * Find all contiguous list blocks in text.
+ * Returns them as groups of line indices.
  */
-function extractTrailingList(text: string): { items: string[]; trimmedText: string } | null {
-  const lines = text.split("\n");
-  const listLines: string[] = [];
-  let listStart = -1;
+function findListBlocks(lines: string[]): number[][] {
+  const groups: number[][] = [];
+  let current: number[] = [];
 
-  // Walk backwards collecting numbered list items
-  let i = lines.length - 1;
-  while (i >= 0) {
-    const line = lines[i].trim();
-    if (!line) { i--; continue; }
-
-    // Check if it looks like a list item
-    if (NUMBERED_ITEM.test(line) || /^[-•*]\s+.+/.test(line)) {
-      listLines.unshift(line);
-      listStart = i;
-    } else if (listLines.length > 0) {
-      // Non-list line after we found some list lines — stop
-      break;
-    } else {
-      // Haven't found any list lines yet, this isn't a trailing list
-      break;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed) {
+      // blank line — end current group if it has items
+      if (current.length >= 1) {
+        groups.push([...current]);
+        current = [];
+      }
+      continue;
     }
-    i--;
+    if (isListLine(trimmed)) {
+      current.push(i);
+    } else {
+      if (current.length >= 1) {
+        groups.push([...current]);
+        current = [];
+      }
+    }
   }
+  if (current.length >= 1) groups.push(current);
 
-  if (listLines.length < 2) return null; // need at least 2 items
-
-  // Items must be reasonably short (not paragraphs)
-  const allShort = listLines.every((l) => l.length < 160);
-  if (!allShort) return null;
-
-  const trimmedText = lines.slice(0, listStart).join("\n").trim();
-  return { items: listLines, trimmedText };
+  return groups;
 }
 
 /**
- * Parse a list item line into label + optional description.
+ * Parse a list item label into { label, description }.
+ * Handles: "**Bold** — desc", "Label: desc", "Label — desc", plain label.
  */
-function parseItem(line: string): { label: string; description?: string } {
-  // Remove leading number/bullet
-  const cleaned = line
-    .replace(/^\d+\.\s+/, "")
-    .replace(/^[-•*]\s+/, "")
-    .trim();
+function parseLabel(raw: string): { label: string; description?: string } {
+  // Remove leading "**" wrappers from bold-wrapped items
+  const withoutBold = raw.replace(/\*\*/g, "");
 
-  // Check for "**Label** — Description" pattern
-  const boldMatch = /^\*\*(.+?)\*\*(?:\s*[—–:-]\s*(.+))?$/.exec(cleaned);
-  if (boldMatch) {
-    return { label: boldMatch[1].trim(), description: boldMatch[2]?.trim() };
-  }
+  // "Label — description" or "Label – desc"
+  const dashMatch = /^(.+?)\s+[—–]\s+(.+)$/.exec(withoutBold);
+  if (dashMatch) return { label: dashMatch[1].trim(), description: dashMatch[2].trim() };
 
-  // Check for "Label: Description" pattern
-  const colonMatch = /^(.+?):\s+(.+)$/.exec(cleaned);
-  if (colonMatch && colonMatch[1].length < 50) {
-    return { label: colonMatch[1].trim(), description: colonMatch[2].trim() };
-  }
+  // "Label: description" (label must be short)
+  const colonMatch = /^(.{3,40}):\s+(.+)$/.exec(withoutBold);
+  if (colonMatch) return { label: colonMatch[1].trim(), description: colonMatch[2].trim() };
 
-  // Check for "Label — Description"
-  const dashMatch = /^(.+?)\s+[—–]\s+(.+)$/.exec(cleaned);
-  if (dashMatch) {
-    return { label: dashMatch[1].trim(), description: dashMatch[2].trim() };
-  }
-
-  return { label: cleaned };
+  return { label: withoutBold.trim() };
 }
 
-/**
- * Detect if a numbered list is actually questions (items end with ?)
- */
 function isQuestionList(items: string[]): boolean {
-  const questionCount = items.filter((item) => {
-    const cleaned = item.replace(/^\d+\.\s+/, "").replace(/^[-•*]\s+/, "").trim();
-    return cleaned.endsWith("?");
-  }).length;
-  return questionCount >= Math.ceil(items.length * 0.6); // 60%+ are questions
+  const q = items.filter((it) => it.trimEnd().endsWith("?")).length;
+  return q >= Math.ceil(items.length * 0.6);
 }
 
-/**
- * Detect if the AI is asking the user to confirm (binary choice).
- * Look for yes/no, lanjut/batal, etc.
- */
 function isConfirmList(items: string[]): boolean {
   if (items.length !== 2) return false;
   const joined = items.join(" ").toLowerCase();
-  return (
-    /\byes\b|\bno\b|\bya\b|\btidak\b|\blanjut|\bbatal|\bconfirm|\bcancel/.test(joined)
-  );
+  return /\byes\b|\bno\b|\bya\b|\btidak\b|\blanjut|\bbatal|\bconfirm|\bcancel|\bogay|\bok\b/.test(joined);
+}
+
+function allItemsShort(items: string[]): boolean {
+  return items.every((it) => it.length <= 200);
 }
 
 /**
- * Main parse function.
- * Returns structured data that the UI can render.
+ * Main parser.
+ * Returns a ParsedResponse — always safe to use, even if blockType === "none".
  */
 export function parseResponse(content: string): ParsedResponse {
   const empty: ParsedResponse = {
     prose: content,
+    afterText: "",
     blockType: "none",
     choices: [],
     questions: [],
   };
 
-  if (!content || content.length < 10) return empty;
+  if (!content || content.length < 5) return empty;
 
-  const extracted = extractTrailingList(content);
-  if (!extracted) return empty;
+  const lines = content.split("\n");
+  const groups = findListBlocks(lines);
 
-  const { items, trimmedText } = extracted;
+  // We want the LAST group with 2+ items that are all reasonably short
+  const lastGroup = [...groups].reverse().find((g) => g.length >= 2 && allItemsShort(g.map((i) => lines[i])));
+  if (!lastGroup) return empty;
 
-  if (isQuestionList(items)) {
-    // Render as a question form
-    const questions: ParsedQuestion[] = items.map((line, idx) => {
-      const cleaned = line.replace(/^\d+\.\s+/, "").replace(/^[-•*]\s+/, "").trim();
-      return { index: idx + 1, question: cleaned };
-    });
-    return { prose: trimmedText, blockType: "questions", choices: [], questions };
+  const firstIdx = lastGroup[0];
+  const lastIdx = lastGroup[lastGroup.length - 1];
+
+  const rawItems = lastGroup.map((i) => extractLabel(lines[i]));
+
+  // Text before the list block
+  const beforeText = lines
+    .slice(0, firstIdx)
+    .join("\n")
+    .trim();
+
+  // Text after the list block (e.g. closing question from the model)
+  const afterText = lines
+    .slice(lastIdx + 1)
+    .join("\n")
+    .trim();
+
+  // Determine block type
+  let blockType: ParsedBlockType = "choices";
+  if (isConfirmList(rawItems)) blockType = "confirm";
+  else if (isQuestionList(rawItems)) blockType = "questions";
+
+  if (blockType === "questions") {
+    const questions: ParsedQuestion[] = rawItems.map((q, i) => ({
+      index: i + 1,
+      question: q,
+    }));
+    return { prose: beforeText, afterText, blockType: "questions", choices: [], questions };
   }
 
-  if (isConfirmList(items)) {
-    const choices: ParsedChoice[] = items.map((line, idx) => {
-      const { label, description } = parseItem(line);
-      return { index: idx + 1, label, description };
-    });
-    return { prose: trimmedText, blockType: "confirm", choices, questions: [] };
-  }
-
-  // Default: render as choice cards
-  const choices: ParsedChoice[] = items.map((line, idx) => {
-    const { label, description } = parseItem(line);
-    return { index: idx + 1, label, description };
+  const choices: ParsedChoice[] = rawItems.map((raw, i) => {
+    const { label, description } = parseLabel(raw);
+    return { index: i + 1, label, description };
   });
 
-  return { prose: trimmedText, blockType: "choices", choices, questions: [] };
+  return { prose: beforeText, afterText, blockType, choices, questions: [] };
 }

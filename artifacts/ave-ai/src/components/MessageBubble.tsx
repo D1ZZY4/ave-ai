@@ -29,6 +29,95 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function Prose({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+  if (!content.trim()) return null;
+  return (
+    <div className={cn("prose prose-sm max-w-none", isStreaming && "typing-cursor")}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code({ className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            if (!match) {
+              return (
+                <code className="bg-[hsl(260_20%_14%)] px-1.5 py-0.5 rounded text-purple-300 text-[0.8em]" {...props}>
+                  {children}
+                </code>
+              );
+            }
+            const codeStr = String(children).replace(/\n$/, "");
+            return (
+              <div className="relative group my-2">
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  <CopyButton text={codeStr} />
+                </div>
+                <SyntaxHighlighter
+                  style={oneDark}
+                  language={match[1]}
+                  PreTag="div"
+                  customStyle={{
+                    margin: 0,
+                    borderRadius: "0.75rem",
+                    border: "1px solid hsl(260 18% 18%)",
+                    background: "hsl(258 30% 6%)",
+                    fontSize: "0.78rem",
+                    lineHeight: "1.6",
+                  }}
+                >
+                  {codeStr}
+                </SyntaxHighlighter>
+              </div>
+            );
+          },
+          p({ children }) {
+            return <p className="mb-2 last:mb-0 text-[13px] leading-relaxed text-[hsl(270_20%_88%)]">{children}</p>;
+          },
+          ul({ children }) {
+            return <ul className="mb-2 pl-4 space-y-0.5 text-[13px] text-[hsl(270_20%_88%)]">{children}</ul>;
+          },
+          ol({ children }) {
+            return <ol className="mb-2 pl-4 space-y-0.5 text-[13px] text-[hsl(270_20%_88%)]">{children}</ol>;
+          },
+          li({ children }) {
+            return <li className="leading-relaxed">{children}</li>;
+          },
+          h1({ children }) {
+            return <h1 className="text-base font-bold text-[hsl(270_20%_95%)] mb-2 mt-3">{children}</h1>;
+          },
+          h2({ children }) {
+            return <h2 className="text-sm font-bold text-[hsl(270_20%_95%)] mb-1.5 mt-3">{children}</h2>;
+          },
+          h3({ children }) {
+            return <h3 className="text-[13px] font-semibold text-[hsl(270_20%_92%)] mb-1 mt-2">{children}</h3>;
+          },
+          blockquote({ children }) {
+            return (
+              <blockquote className="border-l-2 border-purple-600 pl-3 my-2 text-[hsl(265_15%_55%)] italic text-[13px]">
+                {children}
+              </blockquote>
+            );
+          },
+          table({ children }) {
+            return (
+              <div className="overflow-x-auto my-2">
+                <table className="text-[12px] border-collapse w-full">{children}</table>
+              </div>
+            );
+          },
+          th({ children }) {
+            return <th className="border border-[hsl(260_18%_20%)] px-2.5 py-1.5 text-left font-semibold text-[hsl(270_20%_90%)] bg-[hsl(260_20%_12%)]">{children}</th>;
+          },
+          td({ children }) {
+            return <td className="border border-[hsl(260_18%_18%)] px-2.5 py-1.5 text-[hsl(270_20%_82%)]">{children}</td>;
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 interface MessageBubbleProps {
   message: Message;
   onSend: (content: string) => void;
@@ -50,28 +139,14 @@ export function MessageBubble({ message, onSend, isLastMessage, globalStreaming 
     );
   }
 
-  const isStreaming = message.isStreaming;
+  const isStreaming = !!message.isStreaming;
   const hasContent = !!message.content;
   const isGenerating = isStreaming && !hasContent;
 
-  // Only parse the last assistant message once it's done streaming
+  // Parse only the last AI message, only after it finishes streaming
   const canParse = isLastMessage && !isStreaming && hasContent;
   const parsed = canParse ? parseResponse(message.content) : null;
-  const hasInteractiveBlock = parsed && parsed.blockType !== "none";
-
-  // Choices/questions can only be interacted with if nothing is streaming
-  const interactionDisabled = globalStreaming;
-
-  const handleChoiceSelect = (label: string) => {
-    onSend(label);
-  };
-
-  const handleQuestionSubmit = (answers: string) => {
-    onSend(answers);
-  };
-
-  // What text to render as markdown
-  const renderContent = hasInteractiveBlock ? parsed!.prose : message.content;
+  const hasBlock = parsed && parsed.blockType !== "none";
 
   return (
     <div className="mb-4 msg-appear">
@@ -84,94 +159,41 @@ export function MessageBubble({ message, onSend, isLastMessage, globalStreaming 
         />
       )}
 
-      {/* Prose content */}
       {hasContent ? (
-        <div className={cn("prose prose-sm max-w-none", isStreaming && "typing-cursor")}>
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || "");
-                if (!match) {
-                  return (
-                    <code
-                      className="bg-[hsl(260_20%_14%)] px-1.5 py-0.5 rounded text-purple-300 text-[0.8em]"
-                      {...props}
-                    >
-                      {children}
-                    </code>
-                  );
-                }
-                const codeStr = String(children).replace(/\n$/, "");
-                return (
-                  <div className="relative group my-2">
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                      <CopyButton text={codeStr} />
-                    </div>
-                    <SyntaxHighlighter
-                      style={oneDark}
-                      language={match[1]}
-                      PreTag="div"
-                      customStyle={{
-                        margin: 0,
-                        borderRadius: "0.75rem",
-                        border: "1px solid hsl(260 18% 18%)",
-                        background: "hsl(258 30% 6%)",
-                        fontSize: "0.78rem",
-                        lineHeight: "1.6",
-                      }}
-                    >
-                      {codeStr}
-                    </SyntaxHighlighter>
-                  </div>
-                );
-              },
-              p({ children }) {
-                return <p className="mb-2 last:mb-0 text-[13px] leading-relaxed text-[hsl(270_20%_88%)]">{children}</p>;
-              },
-              ul({ children }) {
-                return <ul className="mb-2 pl-4 space-y-0.5 text-[13px] text-[hsl(270_20%_88%)]">{children}</ul>;
-              },
-              ol({ children }) {
-                return <ol className="mb-2 pl-4 space-y-0.5 text-[13px] text-[hsl(270_20%_88%)]">{children}</ol>;
-              },
-              li({ children }) {
-                return <li className="leading-relaxed">{children}</li>;
-              },
-              h1({ children }) {
-                return <h1 className="text-base font-bold text-[hsl(270_20%_95%)] mb-2 mt-3">{children}</h1>;
-              },
-              h2({ children }) {
-                return <h2 className="text-sm font-bold text-[hsl(270_20%_95%)] mb-1.5 mt-3">{children}</h2>;
-              },
-              h3({ children }) {
-                return <h3 className="text-[13px] font-semibold text-[hsl(270_20%_92%)] mb-1 mt-2">{children}</h3>;
-              },
-              blockquote({ children }) {
-                return (
-                  <blockquote className="border-l-2 border-purple-600 pl-3 my-2 text-[hsl(265_15%_55%)] italic text-[13px]">
-                    {children}
-                  </blockquote>
-                );
-              },
-              table({ children }) {
-                return (
-                  <div className="overflow-x-auto my-2">
-                    <table className="text-[12px] border-collapse w-full">{children}</table>
-                  </div>
-                );
-              },
-              th({ children }) {
-                return <th className="border border-[hsl(260_18%_20%)] px-2.5 py-1.5 text-left font-semibold text-[hsl(270_20%_90%)] bg-[hsl(260_20%_12%)]">{children}</th>;
-              },
-              td({ children }) {
-                return <td className="border border-[hsl(260_18%_18%)] px-2.5 py-1.5 text-[hsl(270_20%_82%)]">{children}</td>;
-              },
-            }}
-          >
-            {renderContent}
-          </ReactMarkdown>
-        </div>
+        hasBlock ? (
+          /* ── Parsed: prose + interactive block + optional after-text ── */
+          <>
+            {parsed!.prose && <Prose content={parsed!.prose} />}
+
+            {(parsed!.blockType === "choices" || parsed!.blockType === "confirm") && (
+              <ChoiceCards
+                choices={parsed!.choices}
+                onSelect={onSend}
+                disabled={globalStreaming}
+                type={parsed!.blockType}
+              />
+            )}
+
+            {parsed!.blockType === "questions" && (
+              <QuestionForm
+                prose={parsed!.prose}
+                questions={parsed!.questions}
+                onSubmit={onSend}
+                disabled={globalStreaming}
+              />
+            )}
+
+            {/* After-text: model's closing line after the list */}
+            {parsed!.afterText && (
+              <div className="mt-2">
+                <Prose content={parsed!.afterText} />
+              </div>
+            )}
+          </>
+        ) : (
+          /* ── Plain markdown response ── */
+          <Prose content={message.content} isStreaming={isStreaming} />
+        )
       ) : isGenerating ? (
         <div className="flex gap-1 py-1">
           {[0, 1, 2].map((i) => (
@@ -183,29 +205,6 @@ export function MessageBubble({ message, onSend, isLastMessage, globalStreaming 
           ))}
         </div>
       ) : null}
-
-      {/* Interactive block — rendered AFTER prose, replacing the list */}
-      {hasInteractiveBlock && !isStreaming && (
-        <>
-          {(parsed!.blockType === "choices" || parsed!.blockType === "confirm") && (
-            <ChoiceCards
-              choices={parsed!.choices}
-              onSelect={handleChoiceSelect}
-              disabled={interactionDisabled}
-              type={parsed!.blockType}
-            />
-          )}
-
-          {parsed!.blockType === "questions" && (
-            <QuestionForm
-              prose={parsed!.prose}
-              questions={parsed!.questions}
-              onSubmit={handleQuestionSubmit}
-              disabled={interactionDisabled}
-            />
-          )}
-        </>
-      )}
     </div>
   );
 }
