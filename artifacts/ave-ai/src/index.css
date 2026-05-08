@@ -1,0 +1,246 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Dancing+Script:wght@700&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  /* Ave AI Dark Purple Theme */
+  --background: 258 30% 7%;
+  --foreground: 270 20% 92%;
+
+  --border: 260 18% 18%;
+  --input: 260 18% 18%;
+  --ring: 270 70% 65%;
+
+  --card: 258 25% 10%;
+  --card-foreground: 270 20% 92%;
+
+  --popover: 258 28% 9%;
+  --popover-foreground: 270 20% 92%;
+
+  --primary: 270 70% 65%;
+  --primary-foreground: 258 30% 7%;
+
+  --secondary: 260 20% 14%;
+  --secondary-foreground: 270 20% 92%;
+
+  --muted: 260 20% 14%;
+  --muted-foreground: 265 15% 55%;
+
+  --accent: 270 60% 22%;
+  --accent-foreground: 270 70% 75%;
+
+  --destructive: 0 60% 50%;
+  --destructive-foreground: 0 0% 100%;
+
+  --sidebar: 258 30% 6%;
+  --sidebar-foreground: 270 20% 88%;
+  --sidebar-border: 260 18% 14%;
+  --sidebar-primary: 270 70% 65%;
+  --sidebar-primary-foreground: 258 30% 7%;
+  --sidebar-accent: 260 20% 12%;
+  --sidebar-accent-foreground: 270 20% 92%;
+
+  --app-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --app-font-serif: Georgia, serif;
+  --app-font-mono: 'JetBrains Mono', 'Fira Code', Menlo, monospace;
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #root {
+    height: 100%;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(260 18% 22%);
+    border-radius: 2px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(270 40% 35%);
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .glass {
+    background: hsl(258 28% 9% / 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .purple-glow {
+    box-shadow: 0 0 20px hsl(270 70% 65% / 0.15);
+  }
+
+  .thinking-gradient {
+    background: linear-gradient(135deg, hsl(270 60% 22% / 0.3), hsl(258 28% 9% / 0.1));
+  }
+}
+
+/* Typing cursor animation */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typing-cursor::after {
+  content: '▋';
+  animation: blink 0.7s ease infinite;
+  color: hsl(270 70% 65%);
+  font-size: 0.9em;
+}
+
+/* Thinking pulse */
+@keyframes think-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.thinking-active {
+  animation: think-pulse 1.5s ease infinite;
+}
+
+/* Slide in animation */
+@keyframes slide-up {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.slide-up {
+  animation: slide-up 0.2s ease;
+}
+
+/* Message appear */
+@keyframes msg-appear {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.msg-appear {
+  animation: msg-appear 0.25s ease;
+}
+
+/* Markdown prose overrides */
+.prose {
+  --tw-prose-body: hsl(270 20% 88%);
+  --tw-prose-headings: hsl(270 20% 96%);
+  --tw-prose-bold: hsl(270 20% 96%);
+  --tw-prose-code: hsl(270 70% 75%);
+  --tw-prose-pre-bg: hsl(258 25% 8%);
+  --tw-prose-pre-code: hsl(270 20% 88%);
+  --tw-prose-links: hsl(270 70% 70%);
+  --tw-prose-quotes: hsl(265 15% 55%);
+  --tw-prose-hr: hsl(260 18% 18%);
+  --tw-prose-bullets: hsl(270 40% 55%);
+  --tw-prose-counters: hsl(270 40% 55%);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.prose pre {
+  border: 1px solid hsl(260 18% 20%);
+  border-radius: 0.5rem;
+}
+
+.prose code {
+  background: hsl(260 20% 14%);
+  padding: 0.15em 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+}
+
+.prose pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.prose blockquote {
+  border-left-color: hsl(270 70% 50%);
+  background: hsl(270 60% 15% / 0.3);
+  border-radius: 0 0.375rem 0.375rem 0;
+  padding: 0.5rem 1rem;
+}
+
+.font-logo {
+  font-family: 'Dancing Script', cursive;
+}
