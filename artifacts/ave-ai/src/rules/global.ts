@@ -1,11 +1,16 @@
 import type { RuleResult } from "../types";
-import { MAX_ITERATIONS_EXPERT, MAX_TIME_MS, TOKEN_BUDGET_TOTAL } from "../types";
+import { MAX_ITERATIONS_EXPERT, MAX_TIME_MS, TOKEN_BUDGET_TOTAL, GLOBAL_RULE_SET } from "../types";
 
 export interface GlobalRuleInput {
   iterationCount: number;
   elapsedMs: number;
   estimatedTokens: number;
 }
+
+/**
+ * Diagram 7 — globalRules typed struct (exported sesuai spec)
+ */
+export const globalRules = GLOBAL_RULE_SET;
 
 export function evaluateGlobalRules(input: GlobalRuleInput): RuleResult {
   if (input.iterationCount >= MAX_ITERATIONS_EXPERT) {
@@ -20,8 +25,4 @@ export function evaluateGlobalRules(input: GlobalRuleInput): RuleResult {
   return { decision: "allow" };
 }
 
-export const globalRulesMeta = {
-  maxIterations: MAX_ITERATIONS_EXPERT,
-  maxTimeMs: MAX_TIME_MS,
-  tokenBudget: TOKEN_BUDGET_TOTAL,
-};
+export const globalRulesMeta = globalRules;

@@ -5,6 +5,7 @@ import { useSettings } from "../store/settings";
 import { useSessionStore } from "../store/session";
 import { runFastSession, runExpertSession } from "../helpers/orchestrator";
 import { buildRegistry } from "../helpers/registry";
+import { modeTransitionManager } from "../helpers/modeTransition";
 import { useOfflineQueue } from "./useOfflineQueue";
 import type { OllamaMessage } from "../helpers/ollama";
 import type { ThinkingStep, OfflineQueueItem } from "../types";
@@ -35,6 +36,11 @@ export function useAgent() {
     useChatStore();
   const sessionStore = useSessionStore();
   const abortRef = useRef<AbortController | null>(null);
+
+  // ─── Diagram 19: Mode Transition — reaktif rebuild saat mode berubah ────────
+  useEffect(() => {
+    modeTransitionManager.transition(settings.chatMode, settings.enableTools);
+  }, [settings.chatMode, settings.enableTools]);
 
   // ─── Init: build registry on mount (Diagram 21) ──────────────────────────
   useEffect(() => {

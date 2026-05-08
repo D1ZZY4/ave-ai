@@ -104,7 +104,7 @@ export function Chat({ onBack }: ChatProps) {
         <MessageList messages={messages} onSend={handleSend} />
       )}
 
-      {settings.chatMode === "expert" && <ThinkingBox />}
+      <ThinkingBox />
 
       <ChatInput
         onSend={handleSend}

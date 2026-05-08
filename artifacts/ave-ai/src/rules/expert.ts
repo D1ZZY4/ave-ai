@@ -1,10 +1,12 @@
 import type { RuleResult } from "../types";
+import { EXPERT_RULE_SET } from "../types";
 
-export const expertRulesMeta = {
-  allowTools: true,
-  requireThoughtTag: true,
-  maxIterations: 20,
-};
+/**
+ * Diagram 7 — expertRules typed struct (exported sesuai spec)
+ */
+export const expertRules = EXPERT_RULE_SET;
+
+export const expertRulesMeta = expertRules;
 
 export function evaluateExpertRules(hasThought: boolean, toolRequested: boolean): RuleResult {
   if (toolRequested && !hasThought) {
@@ -30,5 +32,5 @@ Rules:
 - Always include a Thought before any Action.
 - Never skip the Observation step.
 - Use tools purposefully — only when they add real value.
-- Maximum ${expertRulesMeta.maxIterations} reasoning iterations.
+- Maximum ${EXPERT_RULE_SET.maxIterations} reasoning iterations.
 `.trim();

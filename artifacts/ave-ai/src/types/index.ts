@@ -272,3 +272,6 @@ export const SAFETY_RULE_SET: RuleSet["safety"] = {
   detectPII: true,
   detectInjection: true,
 };
+
+// Re-export SafetyRuleSet type alias for Diagram 7
+export type SafetyRuleSet = RuleSet["safety"];
