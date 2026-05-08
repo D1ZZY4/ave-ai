@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { useChat } from "../store/chat";
 import { useSettings } from "../store/settings";
-import { useChatActions } from "../hooks/useChat";
+import { useAgent } from "../hooks/useAgent";
 import { MessageList } from "../components/MessageList";
 import { ChatInput } from "../components/ChatInput";
 import { Sidebar } from "../components/Sidebar";
@@ -11,6 +11,7 @@ import { SkillsModal } from "../components/SkillsModal";
 import { ToolsModal } from "../components/ToolsModal";
 import { ModelSelector } from "../components/ModelSelector";
 import { PersonaSelector } from "../components/PersonaSelector";
+import { ThinkingBox } from "../components/ThinkingBox";
 
 interface ChatProps {
   onBack: () => void;
@@ -19,7 +20,7 @@ interface ChatProps {
 export function Chat({ onBack }: ChatProps) {
   const { activeSession, createSession, setActiveSession } = useChat();
   const { settings } = useSettings();
-  const { sendMessage, stopGeneration } = useChatActions();
+  const { sendMessage, stopGeneration } = useAgent();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
@@ -48,7 +49,6 @@ export function Chat({ onBack }: ChatProps) {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Chat header */}
       <div className="flex items-center justify-between px-2.5 py-2 border-b border-[hsl(260_18%_13%)] bg-[hsl(258_30%_7%)]">
         <div className="flex items-center gap-1.5">
           <button
@@ -91,7 +91,6 @@ export function Chat({ onBack }: ChatProps) {
         onOpenTools={() => setToolsOpen(true)}
       />
 
-      {/* Messages */}
       {messages.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center px-6">
@@ -104,6 +103,8 @@ export function Chat({ onBack }: ChatProps) {
       ) : (
         <MessageList messages={messages} onSend={handleSend} />
       )}
+
+      {settings.chatMode === "expert" && <ThinkingBox />}
 
       <ChatInput
         onSend={handleSend}

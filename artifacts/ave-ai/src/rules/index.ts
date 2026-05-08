@@ -8,6 +8,13 @@ import { expertModeRule } from "./expert-mode";
 import { fastModeRule } from "./fast-mode";
 import { safetyRule } from "./safety";
 
+export type { GlobalRuleInput } from "./global";
+export type { ToolRule } from "./tools";
+export { evaluateGlobalRules, globalRulesMeta } from "./global";
+export { evaluateFastRules, fastRulesMeta, FAST_SYSTEM_ADDENDUM } from "./fast";
+export { evaluateExpertRules, expertRulesMeta, EXPERT_SYSTEM_ADDENDUM } from "./expert";
+export { toolRules, getToolRule } from "./tools";
+
 export interface RuleContext {
   isFirstMessage: boolean;
   messageCount: number;
@@ -27,22 +34,17 @@ export interface Rule {
 }
 
 export const ALL_RULES: Rule[] = [
-  safetyRule,      // priority 200 — absolute
-  greetingRule,    // priority 100 — first message
-  languageRule,    // priority 90  — always
-  thinkingRule,    // priority 80  — when thinking on
-  expertModeRule,  // priority 50  — expert mode
-  fastModeRule,    // priority 50  — fast mode
-  contextRule,     // priority 30  — after a few messages
-  agentRule,       // priority 20  — always
-  toneRule,        // priority 10  — always
+  safetyRule,
+  greetingRule,
+  languageRule,
+  thinkingRule,
+  expertModeRule,
+  fastModeRule,
+  contextRule,
+  agentRule,
+  toneRule,
 ];
 
-/**
- * Compile applicable rules into a single instruction block.
- * Rules are sorted by priority (highest first = most authoritative).
- * Returns both the compiled string and the list of applied rule IDs for the activity log.
- */
 export function compileRules(ctx: RuleContext): {
   rulesPrompt: string;
   appliedRules: string[];

@@ -9,7 +9,7 @@ import { SettingsModal } from "../components/SettingsModal";
 import { SkillsModal } from "../components/SkillsModal";
 import { ToolsModal } from "../components/ToolsModal";
 import { useChat } from "../store/chat";
-import { useChatActions } from "../hooks/useChat";
+import { useAgent } from "../hooks/useAgent";
 import { detectSkill } from "../skills/index";
 
 interface HomeProps {
@@ -24,7 +24,7 @@ const MODE_DESC: Record<ChatMode, string> = {
 export function Home({ onChatStarted }: HomeProps) {
   const { settings, updateSettings } = useSettings();
   const { createSession, setActiveSession } = useChat();
-  const { sendMessage } = useChatActions();
+  const { sendMessage } = useAgent();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
@@ -58,16 +58,13 @@ export function Home({ onChatStarted }: HomeProps) {
         onOpenTools={() => setToolsOpen(true)}
       />
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col items-center justify-center px-5 pb-2">
-        {/* Logo */}
         <div className="mb-8">
           <h1 className="font-logo text-5xl text-purple-400 tracking-tight select-none">
             ave ai
           </h1>
         </div>
 
-        {/* Mode toggle */}
         <div className="flex items-center rounded-full bg-[hsl(258_25%_9%)] border border-[hsl(260_18%_17%)] p-0.5 mb-3 w-full max-w-[240px]">
           {(["fast", "expert"] as ChatMode[]).map((mode) => (
             <button
@@ -86,13 +83,11 @@ export function Home({ onChatStarted }: HomeProps) {
           ))}
         </div>
 
-        {/* Mode description */}
         <p className="text-[9px] font-semibold uppercase tracking-widest text-[hsl(265_15%_38%)] text-center px-4">
           {MODE_DESC[settings.chatMode]}
         </p>
       </div>
 
-      {/* Input */}
       <ChatInput
         onSend={handleSend}
         selectedSkill={selectedSkill}
