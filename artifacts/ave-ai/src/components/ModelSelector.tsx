@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 
 export function ModelSelector() {
   const { settings, updateSettings } = useSettings();
-  const { models, loading, error, refetch } = useModels(settings.baseUrl);
+  const { models, loading, error, refetch } = useModels();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -90,10 +90,9 @@ export function ModelSelector() {
                       )}>
                         {model.name}
                       </div>
-                      {model.details?.parameter_size && (
+                      {(model.paramSize || model.isCustom) && (
                         <div className="text-[9px] text-[hsl(265_15%_38%)] uppercase tracking-wider mt-0.5">
-                          {model.details.parameter_size}
-                          {model.details.quantization_level ? ` · ${model.details.quantization_level}` : ""}
+                          {model.paramSize ?? "manual"}
                         </div>
                       )}
                     </div>

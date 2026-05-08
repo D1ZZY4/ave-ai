@@ -12,6 +12,7 @@ interface Settings {
   showThinking: boolean;
   showProcessLog: boolean;
   username: string;
+  customModels: string[];
 }
 
 interface SettingsContextValue {
@@ -29,6 +30,7 @@ const DEFAULT_SETTINGS: Settings = {
   showThinking: true,
   showProcessLog: true,
   username: "you",
+  customModels: [],
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);

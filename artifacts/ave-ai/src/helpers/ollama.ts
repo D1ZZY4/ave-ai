@@ -1,3 +1,8 @@
+/**
+ * Ollama API helper — all requests go through the API server proxy.
+ * This avoids CORS when using external URLs (Cloudflare tunnels, VPS, Kaggle, etc.)
+ */
+
 export interface OllamaModel {
   name: string;
   model: string;
@@ -59,16 +64,34 @@ export interface OllamaOptions {
   repeat_penalty?: number;
 }
 
+/**
+ * Returns the correct proxy base path.
+ * In production (deployed), BASE_URL will include the artifact path prefix.
+ */
+function proxyBase(): string {
+  const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+  return `${base}/api`;
+}
+
+/**
+ * Fetch available models from Ollama via our API proxy.
+ * Passes the user's configured baseUrl so the server can forward it.
+ */
 export async function listModels(baseUrl: string): Promise<OllamaModel[]> {
-  const url = baseUrl.replace(/\/$/, "");
-  const res = await fetch(`${url}/api/tags`, {
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!res.ok) throw new Error(`Failed to fetch models: ${res.statusText}`);
-  const data = await res.json();
+  const url = `${proxyBase()}/ollama/models?baseUrl=${encodeURIComponent(baseUrl)}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText })) as { error: string };
+    throw new Error(err.error || `Failed to fetch models (${res.status})`);
+  }
+  const data = await res.json() as { models: OllamaModel[] };
   return data.models || [];
 }
 
+/**
+ * Stream a chat completion via our API proxy.
+ * The proxy forwards the request to the user's configured Ollama URL.
+ */
 export async function* streamChat(
   baseUrl: string,
   model: string,
@@ -77,8 +100,8 @@ export async function* streamChat(
   options?: OllamaOptions,
   signal?: AbortSignal
 ): AsyncGenerator<OllamaChatChunk> {
-  const url = baseUrl.replace(/\/$/, "");
   const body: Record<string, unknown> = {
+    baseUrl,
     model,
     messages,
     stream: true,
@@ -94,7 +117,7 @@ export async function* streamChat(
     body.tools = tools;
   }
 
-  const res = await fetch(`${url}/api/chat`, {
+  const res = await fetch(`${proxyBase()}/ollama/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -102,12 +125,12 @@ export async function* streamChat(
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Ollama error ${res.status}: ${text}`);
+    const err = await res.json().catch(() => ({ error: res.statusText })) as { error: string };
+    throw new Error(err.error || `Ollama proxy error (${res.status})`);
   }
 
   const reader = res.body?.getReader();
-  if (!reader) throw new Error("No response body from Ollama");
+  if (!reader) throw new Error("No response stream from proxy");
 
   const decoder = new TextDecoder();
   let buffer = "";
