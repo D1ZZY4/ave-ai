@@ -8,14 +8,23 @@ interface MessageListProps {
 
 export function MessageList({ messages }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastLen = useRef(0);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, messages[messages.length - 1]?.content]);
+    const last = messages[messages.length - 1];
+    const shouldScroll =
+      messages.length !== lastLen.current ||
+      (last?.isStreaming && last.role === "assistant");
+
+    if (shouldScroll) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    lastLen.current = messages.length;
+  }, [messages]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 scrollbar-hide">
-      <div className="max-w-2xl mx-auto">
+    <div className="flex-1 overflow-y-auto px-3.5 py-3 scrollbar-hide">
+      <div className="max-w-xl mx-auto">
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}

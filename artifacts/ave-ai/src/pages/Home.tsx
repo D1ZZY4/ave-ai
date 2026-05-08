@@ -10,10 +10,16 @@ import { SkillsModal } from "../components/SkillsModal";
 import { ToolsModal } from "../components/ToolsModal";
 import { useChat } from "../store/chat";
 import { useChatActions } from "../hooks/useChat";
+import { detectSkill } from "../skills/index";
 
 interface HomeProps {
   onChatStarted: () => void;
 }
+
+const MODE_DESC: Record<ChatMode, string> = {
+  fast: "Optimized for everyday speed and instant responses.",
+  expert: "Advanced reasoning for complex technical tasks.",
+};
 
 export function Home({ onChatStarted }: HomeProps) {
   const { settings, updateSettings } = useSettings();
@@ -25,76 +31,68 @@ export function Home({ onChatStarted }: HomeProps) {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState("general");
 
-  const MODE_DESCRIPTIONS: Record<ChatMode, string> = {
-    fast: "Optimized for everyday speed and instant responses.",
-    expert: "Advanced reasoning for complex technical tasks.",
-  };
-
   const handleSend = async (content: string) => {
+    const autoSkill = detectSkill(content);
+    const skill = selectedSkill !== "general" ? selectedSkill : autoSkill;
+
     const sessionId = createSession(
       settings.selectedModel || "llama3",
       settings.selectedPersona,
-      selectedSkill
+      skill
     );
     setActiveSession(sessionId);
     onChatStarted();
     await sendMessage(content, sessionId);
   };
 
-  const handleNewChat = () => {
-    // Just stay on home
-  };
-
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <Header onMenuOpen={() => setSidebarOpen(true)} onOpenSettings={() => setSettingsOpen(true)} />
+      <Header onMenuOpen={() => setSidebarOpen(true)} />
 
-      {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        onNewChat={handleNewChat}
+        onNewChat={() => {}}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenSkills={() => setSkillsOpen(true)}
         onOpenTools={() => setToolsOpen(true)}
       />
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pb-4">
+      <div className="flex-1 flex flex-col items-center justify-center px-5 pb-2">
         {/* Logo */}
-        <div className="mb-10">
-          <h1 className="font-logo text-6xl text-purple-400 tracking-tight select-none">
+        <div className="mb-8">
+          <h1 className="font-logo text-5xl text-purple-400 tracking-tight select-none">
             ave ai
           </h1>
         </div>
 
         {/* Mode toggle */}
-        <div className="flex items-center rounded-full bg-[hsl(258_25%_10%)] border border-[hsl(260_18%_18%)] p-1 mb-4 w-full max-w-xs">
+        <div className="flex items-center rounded-full bg-[hsl(258_25%_9%)] border border-[hsl(260_18%_17%)] p-0.5 mb-3 w-full max-w-[240px]">
           {(["fast", "expert"] as ChatMode[]).map((mode) => (
             <button
               key={mode}
               onClick={() => updateSettings({ chatMode: mode })}
               className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-xs font-semibold uppercase tracking-widest transition-all",
+                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-[10px] font-semibold uppercase tracking-widest transition-all",
                 settings.chatMode === mode
-                  ? "bg-[hsl(270_60%_20%/0.7)] text-purple-300 border border-[hsl(270_50%_40%/0.3)]"
-                  : "text-[hsl(265_15%_45%)] hover:text-[hsl(265_15%_65%)]"
+                  ? "bg-[hsl(270_55%_18%/0.8)] text-purple-300 border border-[hsl(270_45%_38%/0.3)]"
+                  : "text-[hsl(265_15%_40%)] hover:text-[hsl(265_15%_60%)]"
               )}
             >
-              {mode === "fast" ? <Zap size={13} /> : <Diamond size={13} />}
+              {mode === "fast" ? <Zap size={11} /> : <Diamond size={11} />}
               {mode}
             </button>
           ))}
         </div>
 
         {/* Mode description */}
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-[hsl(265_15%_45%)] text-center mb-8 px-4">
-          {MODE_DESCRIPTIONS[settings.chatMode]}
+        <p className="text-[9px] font-semibold uppercase tracking-widest text-[hsl(265_15%_38%)] text-center px-4">
+          {MODE_DESC[settings.chatMode]}
         </p>
       </div>
 
-      {/* Input area at bottom */}
+      {/* Input */}
       <ChatInput
         onSend={handleSend}
         selectedSkill={selectedSkill}
@@ -102,7 +100,6 @@ export function Home({ onChatStarted }: HomeProps) {
         placeholder="Describe your vision..."
       />
 
-      {/* Modals */}
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <SkillsModal
         isOpen={skillsOpen}

@@ -1,7 +1,8 @@
-import { X, Wrench, ToggleLeft, ToggleRight } from "lucide-react";
+import { X, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AVAILABLE_TOOLS } from "../lib/tools";
+import { ALL_TOOLS } from "../tools/index";
 import { useSettings } from "../store/settings";
+import { Switch } from "@/components/ui/switch";
 
 interface ToolsModalProps {
   isOpen: boolean;
@@ -16,59 +17,50 @@ export function ToolsModal({ isOpen, onClose }: ToolsModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div className="relative w-full max-w-md mx-auto bg-[hsl(258_28%_9%)] border border-[hsl(260_18%_18%)] rounded-t-3xl sm:rounded-3xl shadow-2xl slide-up">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[hsl(260_18%_14%)]">
-          <h2 className="text-base font-semibold text-[hsl(270_20%_92%)]">Tools</h2>
+      <div className="relative w-full max-w-sm mx-auto bg-[hsl(258_28%_8%)] border border-[hsl(260_18%_16%)] rounded-t-3xl sm:rounded-3xl shadow-2xl slide-up">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-[hsl(260_18%_13%)]">
+          <h2 className="text-[13px] font-semibold text-[hsl(270_20%_90%)]">Tools</h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[hsl(265_15%_45%)] hover:text-white hover:bg-[hsl(260_20%_14%)] transition-colors"
+            className="p-1.5 rounded-xl text-[hsl(265_15%_40%)] hover:text-white hover:bg-[hsl(260_20%_13%)] transition-colors"
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
 
-        <div className="px-4 py-4 space-y-2">
-          {/* Enable tools toggle */}
-          <div
-            className={cn(
-              "flex items-center gap-3 px-4 py-3.5 rounded-2xl border",
-              "border-[hsl(260_18%_18%)] bg-[hsl(258_25%_8%)]"
-            )}
-          >
-            <div className="flex-1">
-              <div className="text-sm font-medium text-[hsl(270_20%_92%)]">Enable AI Tools</div>
-              <div className="text-xs text-[hsl(265_15%_45%)] mt-0.5">
-                Let the model use tools when needed
-              </div>
+        <div className="px-3 py-3 space-y-1.5">
+          {/* Master toggle */}
+          <div className="flex items-center justify-between px-3.5 py-3 rounded-2xl bg-[hsl(258_25%_7%)] border border-[hsl(260_18%_14%)]">
+            <div>
+              <div className="text-[12px] font-semibold text-[hsl(270_20%_88%)]">Enable all tools</div>
+              <div className="text-[10px] text-[hsl(265_15%_42%)] mt-0.5">Let the model call tools automatically</div>
             </div>
-            <button onClick={() => updateSettings({ enableTools: !settings.enableTools })}>
-              {settings.enableTools ? (
-                <ToggleRight size={28} className="text-purple-400" />
-              ) : (
-                <ToggleLeft size={28} className="text-[hsl(265_15%_40%)]" />
-              )}
-            </button>
+            <Switch
+              checked={settings.enableTools}
+              onCheckedChange={(v) => updateSettings({ enableTools: v })}
+              className="data-[state=checked]:bg-purple-600 scale-90"
+            />
           </div>
 
           {/* Tool list */}
-          {AVAILABLE_TOOLS.map((tool) => (
+          {ALL_TOOLS.map((tool) => (
             <div
               key={tool.id}
               className={cn(
-                "px-4 py-4 rounded-2xl border transition-all",
+                "px-3.5 py-3 rounded-2xl border transition-all",
                 settings.enableTools
-                  ? "border-[hsl(260_18%_18%)] bg-[hsl(258_25%_8%)]"
-                  : "border-[hsl(260_18%_15%)] bg-[hsl(258_25%_7%)] opacity-50"
+                  ? "border-[hsl(260_18%_16%)] bg-[hsl(258_25%_7%)]"
+                  : "border-[hsl(260_18%_13%)] bg-[hsl(258_25%_6%)] opacity-40"
               )}
             >
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[hsl(260_20%_14%)] flex items-center justify-center flex-shrink-0">
-                  <Wrench size={16} className="text-purple-400" />
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-[hsl(260_20%_13%)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Wrench size={13} className="text-purple-400" />
                 </div>
-                <div>
-                  <div className="text-sm font-medium text-[hsl(270_20%_92%)]">{tool.name}</div>
-                  <div className="text-xs text-[hsl(265_15%_45%)] mt-0.5">{tool.description}</div>
-                  <div className="text-[10px] text-[hsl(265_15%_38%)] font-mono mt-1.5">
+                <div className="min-w-0">
+                  <div className="text-[12px] font-medium text-[hsl(270_20%_85%)]">{tool.name}</div>
+                  <div className="text-[10px] text-[hsl(265_15%_42%)] mt-0.5">{tool.description}</div>
+                  <div className="text-[9px] text-[hsl(265_15%_32%)] font-mono mt-1">
                     {tool.ollamaTool.function.name}()
                   </div>
                 </div>
@@ -77,8 +69,8 @@ export function ToolsModal({ isOpen, onClose }: ToolsModalProps) {
           ))}
         </div>
 
-        <div className="px-5 pb-5">
-          <p className="text-[11px] text-[hsl(265_15%_38%)] text-center">
+        <div className="px-4 pb-4">
+          <p className="text-[10px] text-[hsl(265_15%_34%)] text-center">
             Tools extend the AI's capabilities. Requires model support.
           </p>
         </div>

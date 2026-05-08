@@ -5,21 +5,17 @@ import { ChatProvider, useChat } from "./store/chat";
 import { Home } from "./pages/Home";
 import { Chat } from "./pages/Chat";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
+});
 
 function AppRouter() {
   const [view, setView] = useState<"home" | "chat">("home");
   const { activeSessionId, setActiveSession } = useChat();
 
-  const handleChatStarted = () => {
-    setView("chat");
-  };
+  const handleChatStarted = () => setView("chat");
+  const handleBack = () => setView("home");
 
-  const handleBack = () => {
-    setView("home");
-  };
-
-  // If there's an active session and we're in chat view, show chat
   if (view === "chat" && activeSessionId) {
     return <Chat onBack={handleBack} />;
   }
@@ -27,7 +23,7 @@ function AppRouter() {
   return <Home onChatStarted={handleChatStarted} />;
 }
 
-function App() {
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
@@ -38,5 +34,3 @@ function App() {
     </QueryClientProvider>
   );
 }
-
-export default App;

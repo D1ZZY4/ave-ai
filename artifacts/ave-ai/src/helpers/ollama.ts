@@ -52,6 +52,13 @@ export interface OllamaChatChunk {
   eval_count?: number;
 }
 
+export interface OllamaOptions {
+  temperature?: number;
+  num_predict?: number;
+  top_p?: number;
+  repeat_penalty?: number;
+}
+
 export async function listModels(baseUrl: string): Promise<OllamaModel[]> {
   const url = baseUrl.replace(/\/$/, "");
   const res = await fetch(`${url}/api/tags`, {
@@ -67,6 +74,7 @@ export async function* streamChat(
   model: string,
   messages: OllamaMessage[],
   tools?: OllamaTool[],
+  options?: OllamaOptions,
   signal?: AbortSignal
 ): AsyncGenerator<OllamaChatChunk> {
   const url = baseUrl.replace(/\/$/, "");
@@ -75,7 +83,10 @@ export async function* streamChat(
     messages,
     stream: true,
     options: {
-      temperature: 0.7,
+      temperature: options?.temperature ?? 0.7,
+      num_predict: options?.num_predict ?? 1024,
+      top_p: options?.top_p ?? 0.9,
+      repeat_penalty: options?.repeat_penalty ?? 1.1,
     },
   };
 
@@ -92,11 +103,11 @@ export async function* streamChat(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Ollama error: ${res.status} ${text}`);
+    throw new Error(`Ollama error ${res.status}: ${text}`);
   }
 
   const reader = res.body?.getReader();
-  if (!reader) throw new Error("No response body");
+  if (!reader) throw new Error("No response body from Ollama");
 
   const decoder = new TextDecoder();
   let buffer = "";
@@ -113,42 +124,18 @@ export async function* streamChat(
       const trimmed = line.trim();
       if (!trimmed) continue;
       try {
-        const chunk: OllamaChatChunk = JSON.parse(trimmed);
-        yield chunk;
+        yield JSON.parse(trimmed) as OllamaChatChunk;
       } catch {
-        // skip malformed lines
+        // skip malformed chunk
       }
     }
   }
 
   if (buffer.trim()) {
     try {
-      const chunk: OllamaChatChunk = JSON.parse(buffer.trim());
-      yield chunk;
+      yield JSON.parse(buffer.trim()) as OllamaChatChunk;
     } catch {
       // ignore
     }
   }
-}
-
-export function parseThinking(content: string): { thinking: string; response: string } {
-  const thinkMatch = content.match(/^<think>([\s\S]*?)<\/think>\s*([\s\S]*)$/);
-  if (thinkMatch) {
-    return {
-      thinking: thinkMatch[1].trim(),
-      response: thinkMatch[2].trim(),
-    };
-  }
-
-  // Handle partial/streaming think tags
-  const openThink = content.indexOf("<think>");
-  const closeThink = content.indexOf("</think>");
-  if (openThink !== -1 && closeThink === -1) {
-    return {
-      thinking: content.slice(openThink + 7).trim(),
-      response: "",
-    };
-  }
-
-  return { thinking: "", response: content };
 }

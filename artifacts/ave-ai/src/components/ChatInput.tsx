@@ -1,26 +1,17 @@
 import { useState, useRef, useCallback } from "react";
 import {
-  Send,
-  Square,
-  Plus,
-  Brain,
-  Globe,
-  Zap,
-  ChevronDown,
-  Sparkles,
-  Code2,
-  List,
-  FileText,
+  Send, Square, Plus, Brain, Globe, Zap, ChevronDown,
+  Sparkles, Code2, List, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettings } from "../store/settings";
-import { BUILT_IN_SKILLS } from "../lib/skills";
+import { ALL_SKILLS } from "../skills/index";
 
 const SKILL_ICONS: Record<string, React.ReactNode> = {
-  general: <Zap size={13} />,
-  developer: <Code2 size={13} />,
-  summary: <List size={13} />,
-  prd: <Sparkles size={13} />,
+  general: <Zap size={12} />,
+  developer: <Code2 size={12} />,
+  summary: <List size={12} />,
+  prd: <Sparkles size={12} />,
 };
 
 interface ChatInputProps {
@@ -33,11 +24,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({
-  onSend,
-  onStop,
-  isStreaming,
-  selectedSkill,
-  onSkillChange,
+  onSend, onStop, isStreaming, selectedSkill, onSkillChange,
   placeholder = "Describe your vision...",
 }: ChatInputProps) {
   const { settings, updateSettings } = useSettings();
@@ -50,9 +37,7 @@ export function ChatInput({
     if (!trimmed || isStreaming) return;
     onSend(trimmed);
     setValue("");
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
   }, [value, isStreaming, onSend]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -67,42 +52,37 @@ export function ChatInput({
     const el = textareaRef.current;
     if (el) {
       el.style.height = "auto";
-      el.style.height = Math.min(el.scrollHeight, 180) + "px";
+      el.style.height = Math.min(el.scrollHeight, 140) + "px";
     }
   };
 
-  const currentSkill = BUILT_IN_SKILLS.find((s) => s.id === selectedSkill) || BUILT_IN_SKILLS[0];
+  const currentSkill = ALL_SKILLS.find((s) => s.id === selectedSkill) || ALL_SKILLS[0];
   const canSend = value.trim().length > 0 && !isStreaming;
 
   return (
-    <div className="relative px-3 pb-4 pt-2">
+    <div className="relative px-3 pb-3 pt-1.5">
       {/* Skills dropdown */}
       {showSkills && (
-        <div className="absolute bottom-full left-4 mb-2 w-52 rounded-2xl border border-[hsl(260_18%_18%)] bg-[hsl(258_28%_9%)] shadow-xl overflow-hidden z-50 slide-up">
-          {BUILT_IN_SKILLS.map((skill) => (
+        <div className="absolute bottom-full left-4 mb-1.5 w-44 rounded-2xl border border-[hsl(260_18%_18%)] bg-[hsl(258_28%_9%)] shadow-xl overflow-hidden z-50 slide-up">
+          {ALL_SKILLS.map((skill) => (
             <button
               key={skill.id}
-              onClick={() => {
-                onSkillChange(skill.id);
-                setShowSkills(false);
-              }}
+              onClick={() => { onSkillChange(skill.id); setShowSkills(false); }}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
+                "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors",
                 skill.id === selectedSkill
-                  ? "bg-[hsl(270_60%_22%/0.5)] text-purple-300"
-                  : "text-[hsl(270_20%_88%)] hover:bg-[hsl(260_20%_14%)]"
+                  ? "bg-[hsl(270_60%_20%/0.5)] text-purple-300"
+                  : "text-[hsl(270_20%_80%)] hover:bg-[hsl(260_20%_13%)]"
               )}
             >
-              <span className={cn("text-[hsl(265_15%_50%)]", skill.id === selectedSkill && "text-purple-400")}>
+              <span className={cn("flex-shrink-0", skill.id === selectedSkill ? "text-purple-400" : "text-[hsl(265_15%_48%)]")}>
                 {SKILL_ICONS[skill.id]}
               </span>
-              <span className="text-sm font-medium uppercase tracking-wide">{skill.name}</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider">{skill.name}</span>
               {skill.id === selectedSkill && (
-                <span className="ml-auto text-purple-400">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </span>
+                <svg className="ml-auto text-purple-400 flex-shrink-0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
               )}
             </button>
           ))}
@@ -111,30 +91,30 @@ export function ChatInput({
 
       <div className="rounded-2xl border border-[hsl(260_18%_20%)] bg-[hsl(258_25%_10%)] overflow-hidden">
         {/* Toggle row */}
-        <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
+        <div className="flex items-center gap-1.5 px-3 pt-2 pb-0.5">
           <button
             onClick={() => updateSettings({ enableThinking: !settings.enableThinking })}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all",
+              "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-all",
               settings.enableThinking
-                ? "bg-[hsl(270_60%_22%/0.6)] text-purple-300 border border-[hsl(270_50%_40%/0.4)]"
-                : "text-[hsl(265_15%_50%)] hover:text-[hsl(265_15%_70%)]"
+                ? "bg-[hsl(270_60%_20%/0.6)] text-purple-300 border border-[hsl(270_50%_38%/0.4)]"
+                : "text-[hsl(265_15%_45%)] hover:text-[hsl(265_15%_65%)]"
             )}
           >
-            <Brain size={12} />
+            <Brain size={11} />
             Think
           </button>
           <button
-            onClick={() => updateSettings({ enableSearch: !settings.enableSearch })}
+            onClick={() => updateSettings({ enableTools: !settings.enableTools })}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all",
-              settings.enableSearch
-                ? "bg-[hsl(270_60%_22%/0.6)] text-purple-300 border border-[hsl(270_50%_40%/0.4)]"
-                : "text-[hsl(265_15%_50%)] hover:text-[hsl(265_15%_70%)]"
+              "flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-all",
+              settings.enableTools
+                ? "bg-[hsl(270_60%_20%/0.6)] text-purple-300 border border-[hsl(270_50%_38%/0.4)]"
+                : "text-[hsl(265_15%_45%)] hover:text-[hsl(265_15%_65%)]"
             )}
           >
-            <Globe size={12} />
-            Search
+            <Globe size={11} />
+            Tools
           </button>
         </div>
 
@@ -146,50 +126,50 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           rows={1}
-          className="w-full bg-transparent px-4 py-2 text-sm text-[hsl(270_20%_88%)] placeholder:text-[hsl(265_15%_38%)] resize-none outline-none scrollbar-hide"
-          style={{ minHeight: "40px", maxHeight: "180px" }}
+          className="w-full bg-transparent px-3.5 py-2 text-[13px] text-[hsl(270_20%_88%)] placeholder:text-[hsl(265_15%_35%)] resize-none outline-none scrollbar-hide"
+          style={{ minHeight: "36px", maxHeight: "140px" }}
         />
 
         {/* Bottom row */}
-        <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
-          <div className="flex items-center gap-2">
-            <button className="p-1.5 rounded-full text-[hsl(265_15%_45%)] hover:text-purple-300 transition-colors">
-              <Plus size={16} />
+        <div className="flex items-center justify-between px-3 pb-2 pt-0.5">
+          <div className="flex items-center gap-1.5">
+            <button className="p-1 rounded-lg text-[hsl(265_15%_40%)] hover:text-purple-300 transition-colors">
+              <Plus size={15} />
             </button>
             <button
               onClick={() => setShowSkills((p) => !p)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all",
+                "flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-all",
                 showSkills
-                  ? "bg-[hsl(270_60%_22%/0.5)] text-purple-300"
-                  : "text-[hsl(265_15%_50%)] hover:text-[hsl(265_15%_70%)]"
+                  ? "bg-[hsl(270_60%_20%/0.5)] text-purple-300"
+                  : "text-[hsl(265_15%_45%)] hover:text-[hsl(265_15%_65%)]"
               )}
             >
               {SKILL_ICONS[currentSkill.id]}
-              {currentSkill.name}
-              <ChevronDown size={11} />
+              <span className="ml-0.5">{currentSkill.name}</span>
+              <ChevronDown size={10} />
             </button>
           </div>
 
           {isStreaming ? (
             <button
               onClick={onStop}
-              className="w-8 h-8 rounded-full bg-[hsl(260_20%_18%)] border border-[hsl(260_18%_24%)] flex items-center justify-center text-[hsl(265_15%_60%)] hover:text-white transition-colors"
+              className="w-7 h-7 rounded-full bg-[hsl(260_20%_16%)] border border-[hsl(260_18%_22%)] flex items-center justify-center text-[hsl(265_15%_55%)] hover:text-white transition-colors"
             >
-              <Square size={14} />
+              <Square size={12} />
             </button>
           ) : (
             <button
               onClick={handleSend}
               disabled={!canSend}
               className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                "w-7 h-7 rounded-full flex items-center justify-center transition-all",
                 canSend
-                  ? "bg-purple-600 hover:bg-purple-500 text-white shadow-lg"
-                  : "bg-[hsl(260_20%_14%)] text-[hsl(265_15%_35%)] cursor-not-allowed"
+                  ? "bg-purple-600 hover:bg-purple-500 text-white"
+                  : "bg-[hsl(260_20%_13%)] text-[hsl(265_15%_30%)] cursor-not-allowed"
               )}
             >
-              <Send size={14} />
+              <Send size={12} />
             </button>
           )}
         </div>

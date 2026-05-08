@@ -1,45 +1,66 @@
-# [Project name]
+# Ave AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A mobile-first AI chat interface for Ollama, inspired by modern AI chat apps. Built with React, TypeScript, Tailwind CSS, and Vite.
 
 ## Run & Operate
 
+- `pnpm --filter @workspace/ave-ai run dev` — run the Ave AI web app
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- React 19 + Vite 7 + Tailwind CSS v4
+- State: React Context (no external state lib)
+- Ollama REST API for streaming chat
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+```
+artifacts/ave-ai/src/
+├── tools/          ← one file per tool (calculator, current-time, web-search)
+│   └── index.ts   ← registry + executeTool()
+├── skills/         ← one file per skill (general, developer, summary, prd)
+│   └── index.ts   ← registry + detectSkill()
+├── helpers/        ← utility code (ollama API client, thinking parser, storage)
+├── store/          ← React context (settings, chat sessions/messages)
+├── hooks/          ← useChat (send/stop), useModels (fetch Ollama models)
+├── components/     ← UI components
+│   └── ActivityLog.tsx  ← real-time process log (skill, persona, thinking, tools)
+└── pages/          ← Home (welcome), Chat (active conversation)
+```
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **Contract-first tools/skills**: each tool and skill is its own file — add a new file + register in index.ts, done.
+- **Auto-detect skill**: analyzes user message keywords to pick the best skill automatically; user can always override.
+- **Process log (ActivityLog)**: every AI response shows what skill, persona, mode was used + real-time thinking stream (like Replit Agent). Controlled via Settings toggles.
+- **Layered system prompt**: `skill.prompt + persona.addition + mode.instruction + thinking.instruction` — all composable.
+- **Streaming thinking parser**: `helpers/thinking.ts` handles partial `<think>...</think>` tags during streaming.
+- **No router**: simple view state (`home` | `chat`) in App.tsx — intentional for mobile simplicity.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Ave AI connects to a local Ollama instance and provides:
+- Real-time streaming chat with thinking/reasoning display
+- Model selector (auto-fetched from Ollama)
+- Persona system: Ave Prime, Muse, Architect, Diplomat
+- Skills: General, Developer, Summary, PRD (with auto-detection)
+- Mode: Fast (speed-optimized) or Expert (deep reasoning)
+- Built-in tools: Calculator, Current Time, Web Search
+- Chat history stored in localStorage
+- Custom Ollama base URL in Settings
+- Show/hide process log and thinking independently
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Language: All UI and system prompts in English; AI output matches user's language
+- Mobile-first: compact sizing, large rounded corners, touch-friendly
+- No "alay" language anywhere — professional and clean copy
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Ollama must be running and accessible at the configured base URL
+- `ERR_CONNECTION_REFUSED` in browser console = Ollama not reachable (expected in dev environment)
+- Thinking display requires a model that outputs `<think>...</think>` tags (e.g. qwen3, deepseek-r1)

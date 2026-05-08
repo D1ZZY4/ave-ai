@@ -8,8 +8,9 @@ interface Settings {
   selectedPersona: string;
   chatMode: ChatMode;
   enableThinking: boolean;
-  enableSearch: boolean;
   enableTools: boolean;
+  showThinking: boolean;
+  showProcessLog: boolean;
   username: string;
 }
 
@@ -24,9 +25,10 @@ const DEFAULT_SETTINGS: Settings = {
   selectedPersona: "ave-prime",
   chatMode: "fast",
   enableThinking: false,
-  enableSearch: false,
   enableTools: true,
-  username: "user_ave_ai",
+  showThinking: true,
+  showProcessLog: true,
+  username: "you",
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -46,9 +48,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("ave-ai-settings", JSON.stringify(settings));
   }, [settings]);
 
-  const updateSettings = (patch: Partial<Settings>) => {
+  const updateSettings = (patch: Partial<Settings>) =>
     setSettings((prev) => ({ ...prev, ...patch }));
-  };
 
   return (
     <SettingsContext.Provider value={{ settings, updateSettings }}>

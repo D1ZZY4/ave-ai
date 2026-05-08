@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { listModels, type OllamaModel } from "../lib/ollama";
+import { listModels, type OllamaModel } from "../helpers/ollama";
 
 export function useModels(baseUrl: string) {
   const [models, setModels] = useState<OllamaModel[]>([]);
