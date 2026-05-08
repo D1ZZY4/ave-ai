@@ -6,6 +6,7 @@ export type ProcessStepType =
   | "skill"
   | "persona"
   | "mode"
+  | "rules"
   | "thinking"
   | "tool-call"
   | "response";
@@ -65,10 +66,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const persist = useCallback((updater: (prev: ChatSession[]) => ChatSession[]) => {
     setSessions((prev) => {
       const next = updater(prev);
-      storageSet("ave-ai-sessions", next.slice(-50).map((s) => ({
-        ...s,
-        messages: s.messages.slice(-120),
-      })));
+      storageSet(
+        "ave-ai-sessions",
+        next.slice(-50).map((s) => ({ ...s, messages: s.messages.slice(-120) }))
+      );
       return next;
     });
   }, []);
@@ -76,17 +77,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const createSession = useCallback(
     (model: string, persona: string, skill: string): string => {
       const id = uuidv4();
-      const session: ChatSession = {
-        id,
-        title: "New conversation",
-        messages: [],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        model,
-        persona,
-        skill,
-      };
-      persist((prev) => [session, ...prev]);
+      persist((prev) => [
+        { id, title: "New conversation", messages: [], createdAt: Date.now(), updatedAt: Date.now(), model, persona, skill },
+        ...prev,
+      ]);
       setActiveSessionIdState(id);
       return id;
     },
@@ -108,11 +102,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const addMessage = useCallback(
     (sessionId: string, msg: Omit<Message, "id" | "timestamp">): string => {
       const msgId = uuidv4();
-      const message: Message = { ...msg, id: msgId, timestamp: Date.now() };
       persist((prev) =>
         prev.map((s) =>
           s.id === sessionId
-            ? { ...s, messages: [...s.messages, message], updatedAt: Date.now() }
+            ? { ...s, messages: [...s.messages, { ...msg, id: msgId, timestamp: Date.now() }], updatedAt: Date.now() }
             : s
         )
       );
@@ -126,13 +119,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setSessions((prev) => {
         const next = prev.map((s) =>
           s.id === sessionId
-            ? {
-                ...s,
-                messages: s.messages.map((m) =>
-                  m.id === msgId ? { ...m, ...patch } : m
-                ),
-                updatedAt: Date.now(),
-              }
+            ? { ...s, messages: s.messages.map((m) => (m.id === msgId ? { ...m, ...patch } : m)), updatedAt: Date.now() }
             : s
         );
         storageSet("ave-ai-sessions", next.slice(-50));
@@ -144,9 +131,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const updateSessionTitle = useCallback(
     (sessionId: string, title: string) => {
-      persist((prev) =>
-        prev.map((s) => (s.id === sessionId ? { ...s, title } : s))
-      );
+      persist((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title } : s)));
     },
     [persist]
   );
@@ -154,19 +139,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
 
   return (
-    <ChatContext.Provider
-      value={{
-        sessions,
-        activeSessionId,
-        activeSession,
-        createSession,
-        setActiveSession,
-        deleteSession,
-        addMessage,
-        updateMessage,
-        updateSessionTitle,
-      }}
-    >
+    <ChatContext.Provider value={{ sessions, activeSessionId, activeSession, createSession, setActiveSession, deleteSession, addMessage, updateMessage, updateSessionTitle }}>
       {children}
     </ChatContext.Provider>
   );

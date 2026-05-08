@@ -5,23 +5,23 @@ import { useSettings } from "../store/settings";
 import { streamChat, type OllamaMessage } from "../helpers/ollama";
 import { parseStreamingThinking } from "../helpers/thinking";
 import { getSkill, detectSkill } from "../skills/index";
-import { getPersona } from "../lib/personas";
+import { getPersona } from "../personas/index";
+import { compileRules, type RuleContext } from "../rules/index";
 import { getOllamaTools, executeTool } from "../tools/index";
 
-function makeStep(type: ProcessStep["type"], label: string, content?: string, status: ProcessStep["status"] = "active"): ProcessStep {
+function step(
+  type: ProcessStep["type"],
+  label: string,
+  content?: string,
+  status: ProcessStep["status"] = "done"
+): ProcessStep {
   return { id: uuidv4(), type, label, content, status };
 }
 
 export function useChatActions() {
   const { settings } = useSettings();
-  const {
-    createSession,
-    addMessage,
-    updateMessage,
-    updateSessionTitle,
-    activeSessionId,
-    activeSession,
-  } = useChatStore();
+  const { createSession, addMessage, updateMessage, updateSessionTitle, activeSessionId, activeSession } =
+    useChatStore();
   const abortRef = useRef<AbortController | null>(null);
 
   const stopGeneration = useCallback(() => {
@@ -36,25 +36,44 @@ export function useChatActions() {
         createSession(settings.selectedModel, settings.selectedPersona, "general");
 
       const currentSession = activeSession;
+      const allMessages = currentSession?.messages || [];
 
-      // Auto-detect skill if not manually overridden
+      // ── Layer 1: Skill (auto-detect or manual) ──────────────────────────
       const skillId = currentSession?.skill || detectSkill(userContent);
       const skill = getSkill(skillId);
+
+      // ── Layer 2: Persona ────────────────────────────────────────────────
       const persona = getPersona(settings.selectedPersona);
+
+      // ── Layer 3: Mode ───────────────────────────────────────────────────
       const mode = settings.chatMode;
 
-      // Add user message
+      // ── Layer 4: Rules ──────────────────────────────────────────────────
+      const ruleCtx: RuleContext = {
+        isFirstMessage: allMessages.length === 0,
+        messageCount: allMessages.length,
+        skill: skillId,
+        persona: settings.selectedPersona,
+        mode,
+        enableThinking: settings.enableThinking,
+        userMessage: userContent,
+      };
+      const { rulesPrompt, appliedRules } = compileRules(ruleCtx);
+
+      // ── Add user message ────────────────────────────────────────────────
       addMessage(currentSessionId, { role: "user", content: userContent });
 
-      // Build initial process steps
+      // ── Init process steps ──────────────────────────────────────────────
       const initSteps: ProcessStep[] = [
-        makeStep("skill", `Skill → ${skill.name}`, skill.description, "done"),
-        makeStep("persona", `Persona → ${persona.name}`, persona.description, "done"),
-        makeStep("mode", `Mode → ${mode === "expert" ? "Expert" : "Fast"}`,
-          mode === "expert" ? "Deep reasoning enabled" : "Optimized for speed", "done"),
+        step("skill", `Skill → ${skill.name}`, skill.description),
+        step("persona", `Persona → ${persona.name}`, persona.description),
+        step("mode", `Mode → ${mode === "expert" ? "Expert" : "Fast"}`,
+          mode === "expert" ? "Deep reasoning" : "Speed-optimized"),
+        step("rules", `Rules → ${appliedRules.length} active`,
+          appliedRules.join(", ")),
       ];
 
-      // Add placeholder assistant message with process steps
+      // ── Placeholder assistant message ───────────────────────────────────
       const assistantMsgId = addMessage(currentSessionId, {
         role: "assistant",
         content: "",
@@ -63,27 +82,16 @@ export function useChatActions() {
         model: settings.selectedModel,
       });
 
-      // Build system prompt from layers
-      const modeInstruction =
-        mode === "expert"
-          ? "Think deeply and thoroughly before responding. Break down complex problems. Consider edge cases and trade-offs. Be comprehensive."
-          : "Be concise and direct. Prioritize clarity and speed. Give the core answer first.";
-
-      const thinkingInstruction = settings.enableThinking
-        ? "Use your full reasoning capacity. Think step by step before responding."
-        : "";
-
+      // ── Build layered system prompt ─────────────────────────────────────
       const systemPrompt = [
-        skill.systemPrompt,
-        persona.systemAddition,
-        `Mode: ${modeInstruction}`,
-        thinkingInstruction,
+        `[SKILL: ${skill.name.toUpperCase()}]\n${skill.systemPrompt}`,
+        `[PERSONA: ${persona.name.toUpperCase()}]\n${persona.systemPrompt}`,
+        `[RULES]\n${rulesPrompt}`,
       ]
         .filter(Boolean)
-        .join("\n\n");
+        .join("\n\n---\n\n");
 
-      // Build message history
-      const allMessages = currentSession?.messages || [];
+      // ── Build message history ───────────────────────────────────────────
       const ollamaMessages: OllamaMessage[] = [
         { role: "system", content: systemPrompt },
         ...allMessages
@@ -94,7 +102,6 @@ export function useChatActions() {
 
       abortRef.current = new AbortController();
 
-      // Ollama options based on mode
       const ollamaOptions =
         mode === "expert"
           ? { temperature: 0.4, num_predict: 2048, top_p: 0.85, repeat_penalty: 1.15 }
@@ -107,7 +114,7 @@ export function useChatActions() {
         let thinkingStepId: string | null = null;
         let currentSteps = [...initSteps];
 
-        const updateSteps = (steps: ProcessStep[]) => {
+        const patchSteps = (steps: ProcessStep[]) => {
           currentSteps = steps;
           updateMessage(currentSessionId, assistantMsgId, { steps: [...steps] });
         };
@@ -122,60 +129,63 @@ export function useChatActions() {
         );
 
         for await (const chunk of gen) {
-          // Handle tool calls
+          // ── Tool calls ──────────────────────────────────────────────────
           if (chunk.message?.tool_calls?.length) {
             for (const tc of chunk.message.tool_calls) {
-              const toolStep = makeStep(
-                "tool-call",
-                `Tool → ${tc.function.name}`,
-                `args: ${JSON.stringify(tc.function.arguments)}`,
-                "active"
-              );
-              updateSteps([...currentSteps, toolStep]);
+              const toolStep: ProcessStep = {
+                id: uuidv4(),
+                type: "tool-call",
+                label: `Tool → ${tc.function.name}`,
+                content: `args: ${JSON.stringify(tc.function.arguments)}`,
+                status: "active",
+              };
+              patchSteps([...currentSteps, toolStep]);
 
               const result = await executeTool(tc.function.name, tc.function.arguments || {});
 
-              const doneToolStep: ProcessStep = { ...toolStep, content: result, status: "done" };
-              updateSteps(currentSteps.map((s) => s.id === toolStep.id ? doneToolStep : s));
+              patchSteps(
+                currentSteps.map((s) =>
+                  s.id === toolStep.id ? { ...s, content: result, status: "done" } : s
+                )
+              );
             }
             continue;
           }
 
-          if (chunk.message?.content) {
-            rawContent += chunk.message.content;
-          }
+          if (chunk.message?.content) rawContent += chunk.message.content;
 
-          // Parse thinking from raw stream
+          // ── Parse thinking ──────────────────────────────────────────────
           const parsed = parseStreamingThinking(rawContent);
 
           if (parsed.state === "streaming") {
-            // Thinking is actively streaming — add/update thinking step
+            // Thinking actively in progress
             if (!thinkingStepId) {
-              const thinkStep = makeStep("thinking", "Thinking...", parsed.thinkingContent, "active");
-              thinkingStepId = thinkStep.id;
-              updateSteps([...currentSteps, thinkStep]);
+              const ts: ProcessStep = {
+                id: uuidv4(),
+                type: "thinking",
+                label: "Thinking...",
+                content: parsed.thinkingContent,
+                status: "active",
+              };
+              thinkingStepId = ts.id;
+              patchSteps([...currentSteps, ts]);
             } else {
-              updateSteps(
+              patchSteps(
                 currentSteps.map((s) =>
                   s.id === thinkingStepId
-                    ? { ...s, content: parsed.thinkingContent, status: "active" }
+                    ? { ...s, content: parsed.thinkingContent, label: "Thinking...", status: "active" }
                     : s
                 )
               );
             }
-            // No response content yet
-            updateMessage(currentSessionId, assistantMsgId, {
-              steps: currentSteps,
-              content: "",
-              isStreaming: true,
-            });
+            updateMessage(currentSessionId, assistantMsgId, { steps: currentSteps, content: "", isStreaming: true });
           } else if (parsed.state === "done") {
-            // Thinking done — mark it complete, show response
+            // Thinking complete — seal it
             if (thinkingStepId) {
-              updateSteps(
+              patchSteps(
                 currentSteps.map((s) =>
                   s.id === thinkingStepId
-                    ? { ...s, content: parsed.thinkingContent, status: "done", label: "Thinking" }
+                    ? { ...s, content: parsed.thinkingContent, label: "Thinking", status: "done" }
                     : s
                 )
               );
@@ -186,10 +196,10 @@ export function useChatActions() {
               isStreaming: !chunk.done,
             });
           } else {
-            // No thinking — direct response
+            // Direct response (no thinking)
             updateMessage(currentSessionId, assistantMsgId, {
               steps: currentSteps,
-              content: parsed.responseContent || rawContent,
+              content: rawContent,
               isStreaming: !chunk.done,
             });
           }
@@ -197,7 +207,7 @@ export function useChatActions() {
           if (chunk.done) break;
         }
 
-        // Finalize
+        // ── Finalize ────────────────────────────────────────────────────
         const finalParsed = parseStreamingThinking(rawContent);
         const finalContent =
           finalParsed.state === "done"
@@ -212,7 +222,7 @@ export function useChatActions() {
           steps: currentSteps.map((s) => ({ ...s, status: "done" })),
         });
 
-        // Auto-title on first message
+        // Auto-title
         if (allMessages.length === 0) {
           updateSessionTitle(currentSessionId, userContent.slice(0, 60).trim() || "New conversation");
         }
