@@ -27,6 +27,18 @@ export const toolRules: Record<string, ToolRule> = {
     maxRetries: 2,
     fallbackTool: "calculator",
   },
+  read_file: {
+    toolName: "read_file",
+    rateLimit: 30,
+    cacheTtlMs: 30000,
+    maxRetries: 1,
+  },
+  summarize_text: {
+    toolName: "summarize_text",
+    rateLimit: 20,
+    cacheTtlMs: 120000,
+    maxRetries: 2,
+  },
 };
 
 export function getToolRule(toolName: string): ToolRule {

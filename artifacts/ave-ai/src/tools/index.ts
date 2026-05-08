@@ -1,6 +1,8 @@
 import { calculatorTool } from "./calculator";
 import { currentTimeTool } from "./current-time";
 import { webSearchTool } from "./web-search";
+import { readFileTool } from "./read-file";
+import { summarizeTextTool } from "./summarize-text";
 import type { OllamaTool } from "../helpers/ollama";
 import type { ToolExecutionResult } from "../types";
 import { cacheGet, cacheSet } from "../helpers/cache";
@@ -20,11 +22,15 @@ export const ALL_TOOLS: ToolDefinition[] = [
   calculatorTool,
   currentTimeTool,
   webSearchTool,
+  readFileTool,
+  summarizeTextTool,
 ];
 
 initRateLimit("calculator", 60);
 initRateLimit("current_time", 60);
 initRateLimit("web_search", 10);
+initRateLimit("read_file", 30);
+initRateLimit("summarize_text", 20);
 
 export function getOllamaTools(): OllamaTool[] {
   return ALL_TOOLS.map((t) => t.ollamaTool);
@@ -58,16 +64,16 @@ export async function executeToolWithLifecycle(
   }
 
   if (!checkRateLimit(name)) {
-    const fallback = rule.fallbackTool
-      ? ALL_TOOLS.find((t) => t.ollamaTool.function.name === rule.fallbackTool)
-      : null;
-
-    if (fallback) {
-      try {
-        const result = await fallback.handler(args);
-        return { success: true, result, cached: false, retries: 0 };
-      } catch {
-        // ignore fallback errors
+    const fallbackName = rule.fallbackTool;
+    if (fallbackName) {
+      const fallback = ALL_TOOLS.find((t) => t.ollamaTool.function.name === fallbackName);
+      if (fallback) {
+        try {
+          const result = await fallback.handler(args);
+          return { success: true, result, cached: false, retries: 0 };
+        } catch {
+          // ignore fallback errors
+        }
       }
     }
     return { success: false, result: `Rate limit reached for tool "${name}"`, error: "RATE_LIMIT" };
@@ -78,28 +84,27 @@ export async function executeToolWithLifecycle(
     const result = await withRetry(
       () => tool.handler(args),
       rule.maxRetries,
-      (attempt) => { retries = attempt; },
+      (attempt) => { retries = attempt; }
     );
     recordUsage(name);
     cacheSet(name, args, result, rule.cacheTtlMs);
     return { success: true, result, cached: false, retries };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-
-    if (rule.fallbackTool) {
-      const fallback = ALL_TOOLS.find((t) => t.ollamaTool.function.name === rule.fallbackTool);
+    const fallbackName = rule.fallbackTool;
+    if (fallbackName) {
+      const fallback = ALL_TOOLS.find((t) => t.ollamaTool.function.name === fallbackName);
       if (fallback) {
         try {
           const fallbackResult = await fallback.handler(args);
-          return { success: true, result: `[via fallback ${rule.fallbackTool}] ${fallbackResult}`, cached: false, retries };
+          return { success: true, result: `[via fallback ${fallbackName}] ${fallbackResult}`, cached: false, retries };
         } catch {
           // ignore
         }
       }
     }
-
     return { success: false, result: `Tool "${name}" failed: ${errMsg}`, error: errMsg, retries };
   }
 }
 
-export { calculatorTool, currentTimeTool, webSearchTool };
+export { calculatorTool, currentTimeTool, webSearchTool, readFileTool, summarizeTextTool };

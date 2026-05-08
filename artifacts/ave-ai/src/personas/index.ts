@@ -1,3 +1,4 @@
+import type { FlowPersona } from "../types";
 import { avePrime } from "./ave-prime";
 import { muse } from "./muse";
 import { architect } from "./architect";
@@ -6,16 +7,9 @@ import { sage } from "./sage";
 import { maverick } from "./maverick";
 import { mentor } from "./mentor";
 
-export interface Persona {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  color: string;
-  systemPrompt: string;
-}
+export type { FlowPersona as Persona };
 
-export const ALL_PERSONAS: Persona[] = [
+export const ALL_PERSONAS: FlowPersona[] = [
   avePrime,
   muse,
   architect,
@@ -25,7 +19,7 @@ export const ALL_PERSONAS: Persona[] = [
   mentor,
 ];
 
-export function getPersona(id: string): Persona {
+export function getPersona(id: string): FlowPersona {
   return ALL_PERSONAS.find((p) => p.id === id) ?? avePrime;
 }
 

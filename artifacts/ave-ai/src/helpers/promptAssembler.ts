@@ -41,10 +41,15 @@ export function assembleFastPrompt(
     userMessage: userInput,
   });
 
+  const safetyBlock = persona.safetyRules?.length
+    ? `[PERSONA SAFETY RULES]\n${persona.safetyRules.map((r) => `- ${r}`).join("\n")}`
+    : "";
+
   const systemPrompt = [
     `[PERSONA: ${persona.name.toUpperCase()}]\n${persona.systemPrompt}`,
     `[SKILL: ${skill.name.toUpperCase()}]\n${skill.systemPrompt}`,
     `[RULES]\n${rulesPrompt}`,
+    safetyBlock,
     FAST_SYSTEM_ADDENDUM,
     memoryBlock ? `[MEMORY]\n${memoryBlock}` : "",
   ]
@@ -85,11 +90,21 @@ export function assembleExpertPrompt(
     .map((t) => `- ${t.function.name}: ${t.function.description}`)
     .join("\n");
 
+  const safetyBlock = persona.safetyRules?.length
+    ? `[PERSONA SAFETY RULES]\n${persona.safetyRules.map((r) => `- ${r}`).join("\n")}`
+    : "";
+
+  const expertAddendum = persona.expertPrompt
+    ? `[EXPERT MODE GUIDANCE — ${persona.name.toUpperCase()}]\n${persona.expertPrompt}`
+    : "";
+
   const systemPrompt = [
     `[PERSONA: ${persona.name.toUpperCase()}]\n${persona.systemPrompt}`,
     `[SKILL: ${skill.name.toUpperCase()}]\n${skill.systemPrompt}`,
     `[RULES]\n${rulesPrompt}`,
-    `[AVAILABLE TOOLS]\n${toolList}`,
+    safetyBlock,
+    expertAddendum,
+    toolList ? `[AVAILABLE TOOLS]\n${toolList}` : "",
     EXPERT_SYSTEM_ADDENDUM,
     `[FEW-SHOT EXAMPLES]\n${REACT_EXAMPLES}`,
     memoryBlock ? `[MEMORY]\n${memoryBlock}` : "",
@@ -104,7 +119,7 @@ export function assembleExpertPrompt(
       ...chatHistory,
       { role: "user", content: userInput },
     ],
-    tools: toolSchemas,
+    tools: toolSchemas.length > 0 ? toolSchemas : undefined,
   };
 }
 

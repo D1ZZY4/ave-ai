@@ -1,5 +1,23 @@
 import { create } from "zustand";
 import type { ThinkingStep, SessionStatus, AgentMode } from "../types";
+import { COMPRESS_THRESHOLD } from "../types";
+
+const ARCHIVE_KEY = "ave-ai-session-archive";
+
+function archiveSession(sessionId: string, steps: ThinkingStep[], tokenCount: number): void {
+  try {
+    const archive = JSON.parse(localStorage.getItem(ARCHIVE_KEY) ?? "[]") as unknown[];
+    archive.unshift({
+      sessionId,
+      steps: steps.slice(-10),
+      tokenCount,
+      archivedAt: Date.now(),
+    });
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive.slice(0, 20)));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 interface SessionStore {
   sessionId: string | null;
@@ -13,6 +31,7 @@ interface SessionStore {
   abortController: AbortController | null;
   finalAnswer: string | null;
   errorMessage: string | null;
+  registryReady: boolean;
 
   setSessionActive: (sessionId: string, mode: AgentMode, personaId: string) => void;
   setStatus: (status: SessionStatus) => void;
@@ -21,12 +40,15 @@ interface SessionStore {
   setFinalAnswer: (answer: string) => void;
   setError: (msg: string) => void;
   setTokenCount: (count: number) => void;
+  checkAndTriggerCompression: () => boolean;
   incrementIteration: () => void;
   startAbortController: () => AbortController;
   abortSession: () => void;
+  terminateAndArchive: () => void;
   clearSession: () => void;
   setMode: (mode: AgentMode) => void;
   setPersona: (personaId: string) => void;
+  setRegistryReady: (ready: boolean) => void;
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
@@ -41,6 +63,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   abortController: null,
   finalAnswer: null,
   errorMessage: null,
+  registryReady: false,
 
   setSessionActive: (sessionId, mode, personaId) =>
     set({
@@ -69,11 +92,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return { thinkingSteps: steps };
     }),
 
-  setFinalAnswer: (answer) => set({ finalAnswer: answer, status: "idle" }),
+  setFinalAnswer: (answer) => {
+    const s = get();
+    if (s.sessionId) {
+      archiveSession(s.sessionId, s.thinkingSteps, s.tokenCount);
+    }
+    set({ finalAnswer: answer, status: "idle" });
+  },
 
   setError: (msg) => set({ errorMessage: msg, status: "idle" }),
 
   setTokenCount: (count) => set({ tokenCount: count }),
+
+  checkAndTriggerCompression: (): boolean => {
+    const s = get();
+    if (s.tokenCount >= COMPRESS_THRESHOLD && s.status === "active") {
+      set({ status: "compressing" });
+      return true;
+    }
+    return false;
+  },
 
   incrementIteration: () => set((s) => ({ iterationCount: s.iterationCount + 1 })),
 
@@ -86,6 +124,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   abortSession: () => {
     get().abortController?.abort();
     set({ status: "idle", abortController: null });
+  },
+
+  terminateAndArchive: () => {
+    const s = get();
+    if (s.sessionId) {
+      archiveSession(s.sessionId, s.thinkingSteps, s.tokenCount);
+    }
+    set({ status: "archived", abortController: null });
+    setTimeout(() => set({ status: "idle" }), 100);
   },
 
   clearSession: () =>
@@ -101,9 +148,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       errorMessage: null,
     }),
 
-  setMode: (mode) => {
-    set({ mode });
-  },
+  setMode: (mode) => set({ mode }),
 
   setPersona: (personaId) => set({ personaId }),
+
+  setRegistryReady: (ready) => set({ registryReady: ready }),
 }));

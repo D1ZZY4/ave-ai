@@ -67,6 +67,16 @@ function summarizeSteps(steps: ThinkingStep[]): string {
     .join("\n");
 }
 
+/**
+ * Publicly exported wrapper used by orchestrator when compressing status is triggered.
+ * Summarises the oldest half of the history and returns the truncated list.
+ */
+export function summarizeOldSteps(steps: ThinkingStep[]): ThinkingStep[] {
+  if (steps.length <= SLIDING_WINDOW_SIZE) return steps;
+  const keepFrom = Math.floor(steps.length / 2);
+  return steps.slice(keepFrom);
+}
+
 export interface AssembledPrompt {
   systemPart: string;
   historyPart: string;
