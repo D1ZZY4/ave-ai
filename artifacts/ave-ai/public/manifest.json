@@ -1,12 +1,14 @@
 {
   "name": "Ave AI",
   "short_name": "Ave AI",
-  "description": "Intelligent assistant powered by local Ollama LLM",
+  "description": "Intelligent AI assistant powered by local Ollama — mobile-first, offline-capable",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f0b1a",
-  "theme_color": "#0f0b1a",
-  "orientation": "portrait",
+  "background_color": "#0a0714",
+  "theme_color": "#0a0714",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
   "icons": [
     {
       "src": "/favicon.svg",
@@ -15,5 +17,15 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["productivity", "utilities"]
+  "categories": ["productivity", "utilities", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "New Chat",
+      "short_name": "New Chat",
+      "description": "Start a new conversation",
+      "url": "/?new=1",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    }
+  ],
+  "prefer_related_applications": false
 }

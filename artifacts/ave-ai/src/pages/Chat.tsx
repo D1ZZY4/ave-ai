@@ -1,5 +1,10 @@
+/**
+ * Diagrams 29, 32, 33, 34, 36, 37, 41, 47, 48, 49, 51, 53:
+ * Full Chat page with health indicator, offline detection, keyboard shortcuts,
+ * search, export, notifications, retry, edit, new chat.
+ */
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, Bell, BellOff, Coins, AlertTriangle } from "lucide-react";
+import { Plus, Bell, BellOff, Coins, AlertTriangle, Wifi, WifiOff } from "lucide-react";
 import { useChat } from "../store/chat";
 import { useSettings } from "../store/settings";
 import { useChatActions } from "../hooks/useChat";
@@ -11,9 +16,10 @@ import { SkillsModal } from "../components/SkillsModal";
 import { ToolsModal } from "../components/ToolsModal";
 import { ModelSelector } from "../components/ModelSelector";
 import { PersonaSelector } from "../components/PersonaSelector";
+import { getLastHealthStatus } from "../helpers/healthCheck";
 import { cn } from "@/lib/utils";
 
-const CONTEXT_WINDOW_ESTIMATE = 32768;
+const CONTEXT_WINDOW_ESTIMATE = 65536;
 
 interface ChatProps {
   onBack: () => void;
@@ -25,6 +31,24 @@ async function requestNotificationPermission(): Promise<boolean> {
   if (Notification.permission === "denied") return false;
   const result = await Notification.requestPermission();
   return result === "granted";
+}
+
+/**
+ * Diagram 29: Offline detection hook.
+ */
+function useOnlineStatus() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+  return isOnline;
 }
 
 export function Chat({ onBack }: ChatProps) {
@@ -41,13 +65,26 @@ export function Chat({ onBack }: ChatProps) {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState(activeSession?.skill || "general");
   const [highlightMsgId, setHighlightMsgId] = useState<string | undefined>();
+  const [healthStatus, setHealthStatus] = useState(getLastHealthStatus());
   const greetingTriggeredFor = useRef<string | null>(null);
   const sidebarSearchFocusRef = useRef<(() => void) | null>(null);
+
+  // ── Diagram 29: Offline status ──────────────────────────────────────────
+  const isOnline = useOnlineStatus();
+
+  // ── Diagram 53: Poll health status every 15s when streaming ─────────────
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHealthStatus(getLastHealthStatus());
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (activeSession?.skill) setSelectedSkill(activeSession.skill);
   }, [activeSession?.skill]);
 
+  // ── Diagram 41: Auto-greeting on first message ──────────────────────────
   useEffect(() => {
     if (!activeSession) return;
     if (!settings.autoGreeting) return;
@@ -59,13 +96,14 @@ export function Chat({ onBack }: ChatProps) {
     sendMessage("Hello! Please greet me briefly based on your persona.", activeSession.id);
   }, [activeSession?.id, activeSession?.greetingDone, activeSession?.messages.length, settings.autoGreeting, setGreetingDone, sendMessage]);
 
+  // ── Diagram 49: Keyboard shortcuts ────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         const isStreaming = activeSession?.messages.some((m) => m.isStreaming);
-        if (isStreaming) stopGeneration();
-        if (sidebarOpen) setSidebarOpen(false);
-        if (settingsOpen) setSettingsOpen(false);
+        if (isStreaming) { stopGeneration(); return; }
+        if (sidebarOpen) { setSidebarOpen(false); return; }
+        if (settingsOpen) { setSettingsOpen(false); return; }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "n") {
         e.preventDefault();
@@ -80,17 +118,20 @@ export function Chat({ onBack }: ChatProps) {
         setSidebarOpen(true);
         setTimeout(() => { sidebarSearchFocusRef.current?.(); }, 320);
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen(true);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSession, sidebarOpen, settingsOpen]);
 
   const messages = activeSession?.messages || [];
   const isStreaming = messages.some((m) => m.isStreaming);
   const totalTokens = activeSession?.totalTokens ?? 0;
   const tokenPct = Math.min(100, (totalTokens / CONTEXT_WINDOW_ESTIMATE) * 100);
-  const tokenWarning = tokenPct >= 80;
+  const tokenWarning = tokenPct >= 70;
 
   const handleSend = async (content: string, images?: string[]) => {
     await sendMessage(content, undefined, images);
@@ -98,13 +139,14 @@ export function Chat({ onBack }: ChatProps) {
 
   const handleNewChat = useCallback(() => {
     const sessionId = createSession(
-      settings.selectedModel || "llama3",
+      settings.selectedModel || "",
       settings.selectedPersona,
       selectedSkill
     );
     setActiveSession(sessionId);
   }, [settings.selectedModel, settings.selectedPersona, selectedSkill, createSession, setActiveSession]);
 
+  // ── Diagram 38: Retry last exchange ────────────────────────────────────
   const handleRetry = useCallback(async (lastUserContent: string) => {
     if (!activeSessionId || !activeSession) return;
     const msgs = activeSession.messages;
@@ -115,6 +157,7 @@ export function Chat({ onBack }: ChatProps) {
     await sendMessage(lastUserContent);
   }, [activeSessionId, activeSession, deleteMessage, sendMessage]);
 
+  // ── Diagram 39: Edit message ───────────────────────────────────────────
   const handleEdit = useCallback(async (msgId: string, newContent: string) => {
     if (!activeSessionId || !activeSession) return;
     const msgs = activeSession.messages;
@@ -125,6 +168,7 @@ export function Chat({ onBack }: ChatProps) {
     await sendMessage(newContent);
   }, [activeSessionId, activeSession, deleteMessage, sendMessage]);
 
+  // ── Diagram 51: Notification toggle ────────────────────────────────────
   const handleNotificationToggle = async () => {
     if (!settings.enableNotifications) {
       const ok = await requestNotificationPermission();
@@ -134,6 +178,7 @@ export function Chat({ onBack }: ChatProps) {
     }
   };
 
+  // ── Diagram 47: Search result scroll ───────────────────────────────────
   const handleSelectWithMatch = useCallback((_sessionId: string, messageId?: string) => {
     if (messageId) {
       setHighlightMsgId(messageId);
@@ -147,6 +192,7 @@ export function Chat({ onBack }: ChatProps) {
 
   return (
     <div className="flex flex-col h-full bg-background">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-2.5 py-2 border-b border-[hsl(260_18%_13%)] bg-[hsl(258_30%_7%)]">
         <div className="flex items-center gap-1.5">
           <button
@@ -169,6 +215,7 @@ export function Chat({ onBack }: ChatProps) {
         </div>
 
         <div className="flex items-center gap-1.5">
+          {/* Diagram 46: Token usage display */}
           {totalTokens > 0 && (
             <div
               className={cn(
@@ -181,29 +228,52 @@ export function Chat({ onBack }: ChatProps) {
             >
               {tokenWarning && <AlertTriangle size={9} className="flex-shrink-0" />}
               <Coins size={9} className="flex-shrink-0" />
-              <div className="flex items-center gap-1">
-                <span>{(totalTokens / 1000).toFixed(1)}k</span>
-                <div className="w-12 h-1 rounded-full bg-[hsl(260_18%_18%)] overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      tokenWarning ? "bg-orange-500" : "bg-purple-600"
-                    )}
-                    style={{ width: `${tokenPct}%` }}
-                  />
-                </div>
+              <span>{(totalTokens / 1000).toFixed(1)}k</span>
+              <div className="w-10 h-1 rounded-full bg-[hsl(260_18%_18%)] overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full transition-all", tokenWarning ? "bg-orange-500" : "bg-purple-600")}
+                  style={{ width: `${tokenPct}%` }}
+                />
               </div>
             </div>
           )}
+
+          {/* Diagram 29: Offline indicator */}
+          {!isOnline && (
+            <div
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg border border-yellow-700/60 bg-yellow-950/30 text-yellow-400 text-[9px]"
+              title="No network connection — Ollama requests will fail"
+            >
+              <WifiOff size={9} />
+              <span className="hidden sm:inline">Offline</span>
+            </div>
+          )}
+
+          {/* Diagram 53: Health status indicator */}
+          {isOnline && healthStatus === "fail" && (
+            <div
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg border border-red-700/60 bg-red-950/30 text-red-400 text-[9px] cursor-pointer"
+              title="Cannot reach Ollama — check Settings → Connection"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Wifi size={9} />
+              <span className="hidden sm:inline">Unreachable</span>
+            </div>
+          )}
+
           <ModelSelector />
           <PersonaSelector />
+
           <button
             onClick={handleNotificationToggle}
             className="p-1.5 rounded-xl text-[hsl(265_15%_40%)] hover:text-purple-300 hover:bg-[hsl(260_20%_13%)] transition-colors"
             title={settings.enableNotifications ? "Notifications on" : "Enable notifications"}
           >
-            {settings.enableNotifications ? <Bell size={14} className="text-purple-400" /> : <BellOff size={14} />}
+            {settings.enableNotifications
+              ? <Bell size={14} className="text-purple-400" />
+              : <BellOff size={14} />}
           </button>
+
           <button
             onClick={handleNewChat}
             className="p-1.5 rounded-xl text-[hsl(265_15%_45%)] hover:text-purple-300 hover:bg-[hsl(260_20%_13%)] transition-colors"
@@ -213,6 +283,14 @@ export function Chat({ onBack }: ChatProps) {
           </button>
         </div>
       </div>
+
+      {/* ── Diagram 29: Offline banner ──────────────────────────────────── */}
+      {!isOnline && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-950/40 border-b border-yellow-800/30 text-yellow-400 text-[10px]">
+          <WifiOff size={11} />
+          <span>You are offline. Ollama AI responses require a network connection to your Ollama instance.</span>
+        </div>
+      )}
 
       <Sidebar
         isOpen={sidebarOpen}
@@ -250,7 +328,7 @@ export function Chat({ onBack }: ChatProps) {
         isStreaming={isStreaming}
         selectedSkill={selectedSkill}
         onSkillChange={setSelectedSkill}
-        placeholder="Message Ave AI… (Enter, Shift+Enter for newline, Ctrl+K to search)"
+        placeholder="Message Ave AI… (Enter · Shift+Enter for newline · Ctrl+K search)"
       />
 
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />

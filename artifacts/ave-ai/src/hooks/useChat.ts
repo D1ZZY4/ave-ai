@@ -1,3 +1,8 @@
+/**
+ * Diagram 2, 3, 10, 11, 15, 25, 26, 27, 40, 46, 51, 53, 54:
+ * Full orchestrator — input validation, health check, streaming, tool retry,
+ * session compression, token tracking, output validation, notifications.
+ */
 import { useRef, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useChat as useChatStore, type ProcessStep } from "../store/chat";
@@ -6,8 +11,12 @@ import { streamChat, type OllamaMessage } from "../helpers/ollama";
 import { parseStreamingThinking } from "../helpers/thinking";
 import { getSkill, detectSkill } from "../skills/index";
 import { getPersona } from "../personas/index";
-import { compileRules, type RuleContext } from "../rules/index";
+import { compileRules, RulesEngine, type RuleContext } from "../rules/index";
 import { getOllamaTools, executeTool } from "../tools/index";
+import { estimateTokens, shouldCompress, compressionTargetTokens } from "../helpers/tokenizer";
+import { compressHistory } from "../helpers/compression";
+import { checkOllamaHealth, setHealthStatus } from "../helpers/healthCheck";
+import { sanitizeInput } from "../helpers/sanitizer";
 
 function step(
   type: ProcessStep["type"],
@@ -18,10 +27,23 @@ function step(
   return { id: uuidv4(), type, label, content, status };
 }
 
+function fireNotification(title: string, body: string) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  try {
+    new Notification(title, { body, icon: "/favicon.svg", tag: "ave-ai-response" });
+    if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+  } catch {
+    // Ignore — notifications blocked or unavailable
+  }
+}
+
 export function useChatActions() {
   const { settings } = useSettings();
-  const { createSession, addMessage, updateMessage, updateSessionTitle, activeSessionId, activeSession } =
-    useChatStore();
+  const {
+    createSession, addMessage, updateMessage, updateSessionTitle,
+    updateSessionTokens, activeSessionId, activeSession,
+  } = useChatStore();
   const abortRef = useRef<AbortController | null>(null);
 
   const stopGeneration = useCallback(() => {
@@ -30,6 +52,17 @@ export function useChatActions() {
 
   const sendMessage = useCallback(
     async (userContent: string, sessionId?: string, images?: string[]) => {
+      // ── Diagram 43: Ensure model is selected ───────────────────────────
+      if (!settings.selectedModel) {
+        const sid = sessionId || activeSessionId || createSession("", settings.selectedPersona, "general");
+        addMessage(sid, {
+          role: "assistant",
+          content: "**No model selected.** Please open Settings → Connection and choose or add a model before chatting.",
+          isStreaming: false,
+        });
+        return;
+      }
+
       const currentSessionId =
         sessionId ||
         activeSessionId ||
@@ -38,17 +71,15 @@ export function useChatActions() {
       const currentSession = activeSession;
       const allMessages = currentSession?.messages || [];
 
-      // ── Layer 1: Skill (auto-detect or manual) ──────────────────────────
-      const skillId = currentSession?.skill || detectSkill(userContent);
+      // ── Diagram 28: Sanitize input ──────────────────────────────────────
+      const sanitized = sanitizeInput(userContent, 8192);
+
+      // ── Diagram 5, 18: Input validation via RulesEngine ────────────────
+      const mode = settings.chatMode;
+      const skillId = currentSession?.skill || detectSkill(sanitized);
+      const persona = getPersona(settings.selectedPersona);
       const skill = getSkill(skillId);
 
-      // ── Layer 2: Persona ────────────────────────────────────────────────
-      const persona = getPersona(settings.selectedPersona);
-
-      // ── Layer 3: Mode ───────────────────────────────────────────────────
-      const mode = settings.chatMode;
-
-      // ── Layer 4: Rules ──────────────────────────────────────────────────
       const ruleCtx: RuleContext = {
         isFirstMessage: allMessages.length === 0,
         messageCount: allMessages.length,
@@ -56,12 +87,36 @@ export function useChatActions() {
         persona: settings.selectedPersona,
         mode,
         enableThinking: settings.enableThinking,
-        userMessage: userContent,
+        userMessage: sanitized,
       };
+
+      const engine = new RulesEngine(ruleCtx);
+      const inputResult = engine.validateInput(sanitized);
+
+      if (inputResult.decision === "Deny") {
+        addMessage(currentSessionId, { role: "user", content: sanitized });
+        addMessage(currentSessionId, {
+          role: "assistant",
+          content: `⚠️ **Message blocked:** ${inputResult.reason}`,
+          isStreaming: false,
+        });
+        return;
+      }
+
+      const effectiveInput =
+        inputResult.decision === "Modify" && inputResult.modifiedContent
+          ? inputResult.modifiedContent
+          : sanitized;
+
+      // ── Diagram 4: Compile rules ────────────────────────────────────────
       const { rulesPrompt, appliedRules } = compileRules(ruleCtx);
 
       // ── Add user message ────────────────────────────────────────────────
-      addMessage(currentSessionId, { role: "user", content: userContent });
+      addMessage(currentSessionId, {
+        role: "user",
+        content: sanitized,
+        images: images && images.length > 0 ? images : undefined,
+      });
 
       // ── Init process steps ──────────────────────────────────────────────
       const initSteps: ProcessStep[] = [
@@ -69,8 +124,7 @@ export function useChatActions() {
         step("persona", `Persona → ${persona.name}`, persona.description),
         step("mode", `Mode → ${mode === "expert" ? "Expert" : "Fast"}`,
           mode === "expert" ? "Deep reasoning" : "Speed-optimized"),
-        step("rules", `Rules → ${appliedRules.length} active`,
-          appliedRules.join(", ")),
+        step("rules", `Rules → ${appliedRules.length} active`, appliedRules.join(", ")),
       ];
 
       // ── Placeholder assistant message ───────────────────────────────────
@@ -82,43 +136,93 @@ export function useChatActions() {
         model: settings.selectedModel,
       });
 
-      // ── Build layered system prompt ─────────────────────────────────────
+      // ── Diagram 52: System prompt with persona override ─────────────────
+      const personaOverride = settings.systemPromptOverrides?.[settings.selectedPersona];
+      const personaPrompt = personaOverride || persona.systemPrompt;
+
+      // ── Build layered system prompt (Diagram 23) ────────────────────────
       const systemPrompt = [
         `[SKILL: ${skill.name.toUpperCase()}]\n${skill.systemPrompt}`,
-        `[PERSONA: ${persona.name.toUpperCase()}]\n${persona.systemPrompt}`,
+        `[PERSONA: ${persona.name.toUpperCase()}]\n${personaPrompt}`,
         `[RULES]\n${rulesPrompt}`,
-      ]
-        .filter(Boolean)
-        .join("\n\n---\n\n");
+      ].filter(Boolean).join("\n\n---\n\n");
 
       // ── Build message history ───────────────────────────────────────────
-      const ollamaMessages: OllamaMessage[] = [
+      const historyMessages: OllamaMessage[] = [
         { role: "system", content: systemPrompt },
         ...allMessages
           .filter((m) => !m.isStreaming)
-          .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-        { role: "user", content: userContent },
+          .map((m): OllamaMessage => {
+            const msg: OllamaMessage = {
+              role: m.role as "user" | "assistant",
+              content: m.content,
+            };
+            if (m.images && m.images.length > 0 && m.role === "user") {
+              msg.images = m.images;
+            }
+            return msg;
+          }),
+        images && images.length > 0
+          ? { role: "user", content: effectiveInput, images }
+          : { role: "user", content: effectiveInput },
       ];
 
-      abortRef.current = new AbortController();
+      // ── Diagram 15: Session compression at 70% token budget ─────────────
+      const totalTokens = historyMessages.reduce(
+        (t, m) => t + estimateTokens(m.content) + 4, 0
+      );
+      let ollamaMessages = historyMessages;
+      let compressionNote = "";
 
+      if (shouldCompress(totalTokens)) {
+        const compressed = compressHistory(historyMessages, compressionTargetTokens());
+        ollamaMessages = compressed.messages;
+        if (compressed.wasCompressed) {
+          compressionNote = `Compressing state — removed ${compressed.removedCount} old messages to stay within context window.`;
+        }
+      }
+
+      // ── Diagram 54: Max output tokens from settings ─────────────────────
+      const numPredict = Math.min(settings.maxOutputTokens ?? 2048, 8192);
+
+      // ── Diagram 4, 19: Mode-based Ollama options ────────────────────────
       const ollamaOptions =
         mode === "expert"
-          ? { temperature: 0.4, num_predict: 2048, top_p: 0.85, repeat_penalty: 1.15 }
-          : { temperature: 0.7, num_predict: 1024, top_p: 0.9, repeat_penalty: 1.1 };
+          ? { temperature: 0.4, num_predict: numPredict, top_p: 0.85, repeat_penalty: 1.15 }
+          : { temperature: 0.7, num_predict: Math.min(numPredict, 1024), top_p: 0.9, repeat_penalty: 1.1 };
 
-      const tools = settings.enableTools ? getOllamaTools() : undefined;
+      // ── Diagram 2, 3: Tool schema only in Expert + enableTools ──────────
+      const tools =
+        mode === "expert" && settings.enableTools ? getOllamaTools() : undefined;
+
+      // ── Diagram 25: Per-conversation AbortController ────────────────────
+      abortRef.current = new AbortController();
+
+      // ── Diagram 53: Health check (non-blocking, cached 30s) ─────────────
+      checkOllamaHealth(settings.baseUrl, abortRef.current.signal).then((status) => {
+        setHealthStatus(status);
+      }).catch(() => {});
+
+      let currentSteps: ProcessStep[] = [...initSteps];
 
       try {
         let rawContent = "";
         let thinkingStepId: string | null = null;
-        let currentSteps = [...initSteps];
+        let evalCount = 0;
+
+        if (compressionNote) {
+          currentSteps = [
+            ...currentSteps,
+            step("response", "Context compressed", compressionNote, "done"),
+          ];
+        }
 
         const patchSteps = (steps: ProcessStep[]) => {
           currentSteps = steps;
           updateMessage(currentSessionId, assistantMsgId, { steps: [...steps] });
         };
 
+        // ── Diagram 2, 40: Streaming loop ───────────────────────────────
         const gen = streamChat(
           settings.baseUrl,
           settings.selectedModel,
@@ -128,10 +232,15 @@ export function useChatActions() {
           abortRef.current.signal
         );
 
+        let toolCallCount = 0;
+        const MAX_TOOL_CALLS = 5;
+
         for await (const chunk of gen) {
-          // ── Tool calls ──────────────────────────────────────────────────
-          if (chunk.message?.tool_calls?.length) {
+          // ── Diagram 14, 17: Tool call handling ─────────────────────────
+          if (chunk.message?.tool_calls?.length && toolCallCount < MAX_TOOL_CALLS) {
             for (const tc of chunk.message.tool_calls) {
+              toolCallCount++;
+
               const toolStep: ProcessStep = {
                 id: uuidv4(),
                 type: "tool-call",
@@ -141,11 +250,34 @@ export function useChatActions() {
               };
               patchSteps([...currentSteps, toolStep]);
 
-              const result = await executeTool(tc.function.name, tc.function.arguments || {});
+              // Diagram 17: Validate tool parameters via RulesEngine
+              const toolValidation = engine.validateToolCall(
+                tc.function.name,
+                tc.function.arguments || {}
+              );
+
+              if (toolValidation.decision === "Deny") {
+                patchSteps(
+                  currentSteps.map((s) =>
+                    s.id === toolStep.id
+                      ? { ...s, content: `Blocked: ${toolValidation.reason}`, status: "done" }
+                      : s
+                  )
+                );
+                continue;
+              }
+
+              // Diagram 10, 26, 27: Execute tool with retry, cache, rate limit
+              const result = await executeTool(
+                tc.function.name,
+                tc.function.arguments || {}
+              );
 
               patchSteps(
                 currentSteps.map((s) =>
-                  s.id === toolStep.id ? { ...s, content: result, status: "done" } : s
+                  s.id === toolStep.id
+                    ? { ...s, content: result.slice(0, 120), status: "done" }
+                    : s
                 )
               );
             }
@@ -153,12 +285,12 @@ export function useChatActions() {
           }
 
           if (chunk.message?.content) rawContent += chunk.message.content;
+          if (chunk.eval_count) evalCount = chunk.eval_count;
 
-          // ── Parse thinking ──────────────────────────────────────────────
+          // ── Diagram 16: Real-time thinking display ──────────────────────
           const parsed = parseStreamingThinking(rawContent);
 
           if (parsed.state === "streaming") {
-            // Thinking actively in progress
             if (!thinkingStepId) {
               const ts: ProcessStep = {
                 id: uuidv4(),
@@ -178,9 +310,12 @@ export function useChatActions() {
                 )
               );
             }
-            updateMessage(currentSessionId, assistantMsgId, { steps: currentSteps, content: "", isStreaming: true });
+            updateMessage(currentSessionId, assistantMsgId, {
+              steps: currentSteps,
+              content: "",
+              isStreaming: true,
+            });
           } else if (parsed.state === "done") {
-            // Thinking complete — seal it
             if (thinkingStepId) {
               patchSteps(
                 currentSteps.map((s) =>
@@ -196,7 +331,6 @@ export function useChatActions() {
               isStreaming: !chunk.done,
             });
           } else {
-            // Direct response (no thinking)
             updateMessage(currentSessionId, assistantMsgId, {
               steps: currentSteps,
               content: rawContent,
@@ -207,39 +341,70 @@ export function useChatActions() {
           if (chunk.done) break;
         }
 
-        // ── Finalize ────────────────────────────────────────────────────
+        // ── Finalize content ────────────────────────────────────────────
         const finalParsed = parseStreamingThinking(rawContent);
-        const finalContent =
+        let finalContent =
           finalParsed.state === "done"
             ? finalParsed.responseContent
             : finalParsed.state === "streaming"
             ? finalParsed.thinkingContent
             : rawContent;
 
+        // ── Diagram 2, 18: Output validation ────────────────────────────
+        const outputResult = engine.validateOutput(finalContent);
+        if (outputResult.decision === "Deny") {
+          finalContent = `⚠️ **Response blocked:** ${outputResult.reason}`;
+        } else if (outputResult.decision === "Modify" && outputResult.modifiedContent) {
+          finalContent = outputResult.modifiedContent;
+        }
+
         updateMessage(currentSessionId, assistantMsgId, {
           content: finalContent,
           isStreaming: false,
-          steps: currentSteps.map((s) => ({ ...s, status: "done" })),
+          tokenCount: evalCount,
+          steps: currentSteps.map((s) => ({ ...s, status: "done" as const })),
         });
 
-        // Auto-title
+        // ── Diagram 46: Token usage tracking ────────────────────────────
+        if (evalCount > 0) {
+          updateSessionTokens(currentSessionId, evalCount);
+        }
+
+        // ── Diagram 32, 33: Auto-title on first message ──────────────────
         if (allMessages.length === 0) {
-          updateSessionTitle(currentSessionId, userContent.slice(0, 60).trim() || "New conversation");
+          updateSessionTitle(
+            currentSessionId,
+            sanitized.slice(0, 60).trim() || "New conversation"
+          );
+        }
+
+        // ── Diagram 51: Notification on completion ───────────────────────
+        if (settings.enableNotifications && document.hidden) {
+          fireNotification(
+            "Ave AI",
+            finalContent.replace(/[#*`]/g, "").slice(0, 80) || "Response ready"
+          );
         }
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {
-          updateMessage(currentSessionId, assistantMsgId, { isStreaming: false });
+          updateMessage(currentSessionId, assistantMsgId, {
+            isStreaming: false,
+            steps: currentSteps.map((s) => ({ ...s, status: "done" as const })),
+          });
           return;
         }
+
+        // ── Diagram 11: Error handling & recovery ────────────────────────
         const msg = err instanceof Error ? err.message : String(err);
+        setHealthStatus("fail");
         updateMessage(currentSessionId, assistantMsgId, {
-          content: `Connection error: ${msg}\n\nMake sure Ollama is running at **${settings.baseUrl}** and a model is selected.`,
+          content: `**Connection error:** ${msg}\n\nMake sure Ollama is running at **${settings.baseUrl}** and a model is selected.\n\n_Tip: Open Settings → Connection to test your connection._`,
           isStreaming: false,
           steps: undefined,
         });
       }
     },
-    [settings, activeSessionId, activeSession, createSession, addMessage, updateMessage, updateSessionTitle]
+    [settings, activeSessionId, activeSession, createSession, addMessage, updateMessage, updateSessionTitle, updateSessionTokens]
   );
 
   return { sendMessage, stopGeneration };
