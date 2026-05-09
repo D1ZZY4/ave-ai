@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useSettings } from "../store/settings";
 import { useModels } from "../hooks/useModels";
 import { Switch } from "@/components/ui/switch";
+import { warmUpModel } from "../helpers/modelWarmup";
 
 export function ModelSelector() {
   const { settings, updateSettings } = useSettings();
@@ -76,7 +77,11 @@ export function ModelSelector() {
               models.map((model) => (
                 <button
                   key={model.name}
-                  onClick={() => { updateSettings({ selectedModel: model.name }); setOpen(false); }}
+                  onClick={() => {
+                    updateSettings({ selectedModel: model.name });
+                    setOpen(false);
+                    warmUpModel(settings.baseUrl, model.name);
+                  }}
                   className={cn(
                     "w-full text-left px-3.5 py-2.5 transition-colors",
                     model.name === settings.selectedModel ? "bg-[hsl(260_20%_13%)]" : "hover:bg-[hsl(260_20%_11%)]"

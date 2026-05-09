@@ -160,7 +160,9 @@ export interface FlowPersona {
   color: string;
   systemPrompt: string;
   expertPrompt?: string;
+  toneInstruction?: string;
   safetyRules?: string[];
+  systemPromptOverride?: string;
 }
 
 // ─── Memory ─────────────────────────────────────────────────────────────────
@@ -209,6 +211,9 @@ export interface OrchestratorOptions {
   enableThinking: boolean;
   enableTools: boolean;
   signal?: AbortSignal;
+  systemPromptOverride?: string;
+  numPredict?: number;
+  isGreeting?: boolean;
 }
 
 export interface OrchestratorResult {

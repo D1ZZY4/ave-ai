@@ -9,8 +9,14 @@ export interface GlobalRuleInput {
 
 /**
  * Diagram 7 — globalRules typed struct (exported sesuai spec)
+ * Diagram 41 — requireGreeting added
  */
-export const globalRules = GLOBAL_RULE_SET;
+export const globalRules = {
+  ...GLOBAL_RULE_SET,
+  requireGreeting: true,
+};
+
+export type GlobalRules = typeof globalRules;
 
 export function evaluateGlobalRules(input: GlobalRuleInput): RuleResult {
   if (input.iterationCount >= MAX_ITERATIONS_EXPERT) {

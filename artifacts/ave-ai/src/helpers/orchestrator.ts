@@ -137,10 +137,42 @@ async function executeSkillOrTool(
 export async function runFastSession(
   userInput: string,
   chatHistory: OllamaMessage[],
-  opts: OrchestratorOptions
+  opts: OrchestratorOptions,
+  greetingOverridePrompt?: string
 ): Promise<OrchestratorResult> {
   const store = useSessionStore.getState();
   const startedAt = Date.now();
+
+  // ─── Diagram 41: Auto-greeting special case ────────────────────────────────
+  if (userInput === "__greeting__" || opts.isGreeting) {
+    const persona = (await import("../personas/index")).getPersona(opts.personaId);
+    const greetingSystemPrompt = greetingOverridePrompt ??
+      `${opts.systemPromptOverride ?? persona.systemPrompt}\n\nYou are starting a new conversation. Generate a brief, warm, friendly greeting (1-2 sentences max) that fits your persona. Do not ask what the user wants yet — just greet them naturally.`;
+
+    let greetingRaw = "";
+    try {
+      const gResult = await callLLMWithRecovery(
+        opts.baseUrl,
+        opts.model,
+        [
+          { role: "system", content: greetingSystemPrompt },
+          { role: "user", content: "[Start the conversation with a short greeting]" },
+        ],
+        undefined,
+        { temperature: 0.8, num_predict: 80, top_p: 0.9 },
+        opts.signal
+      );
+      greetingRaw = gResult.rawContent.trim();
+    } catch {
+      greetingRaw = `Hello! I'm ${persona.name}. How can I help you today?`;
+    }
+    return {
+      finalAnswer: greetingRaw,
+      thinkingSteps: [],
+      iterationCount: 1,
+      tokenCount: estimateTokens(greetingRaw),
+    };
+  }
 
   const globalCtx = {
     iterationCount: 0,
@@ -167,6 +199,7 @@ export async function runFastSession(
 
   store.incrementIteration();
 
+  const numPredict = opts.numPredict ?? 2048;
   let rawContent = "";
   let toolCalls: { name: string; arguments: Record<string, unknown> }[] = [];
 
@@ -176,7 +209,7 @@ export async function runFastSession(
       opts.model,
       request.ollamaMessages,
       undefined,
-      { temperature: 0.7, num_predict: 1024, top_p: 0.9, repeat_penalty: 1.1 },
+      { temperature: 0.7, num_predict: numPredict, top_p: 0.9, repeat_penalty: 1.1 },
       opts.signal
     );
     rawContent = result.rawContent;

@@ -45,8 +45,10 @@ export function assembleFastPrompt(
     ? `[PERSONA SAFETY RULES]\n${persona.safetyRules.map((r) => `- ${r}`).join("\n")}`
     : "";
 
+  const personaPrompt = opts.systemPromptOverride ?? persona.systemPrompt;
+
   const systemPrompt = [
-    `[PERSONA: ${persona.name.toUpperCase()}]\n${persona.systemPrompt}`,
+    `[PERSONA: ${persona.name.toUpperCase()}]\n${personaPrompt}`,
     `[SKILL: ${skill.name.toUpperCase()}]\n${skill.systemPrompt}`,
     `[RULES]\n${rulesPrompt}`,
     safetyBlock,
@@ -98,8 +100,10 @@ export function assembleExpertPrompt(
     ? `[EXPERT MODE GUIDANCE — ${persona.name.toUpperCase()}]\n${persona.expertPrompt}`
     : "";
 
+  const personaPrompt = opts.systemPromptOverride ?? persona.systemPrompt;
+
   const systemPrompt = [
-    `[PERSONA: ${persona.name.toUpperCase()}]\n${persona.systemPrompt}`,
+    `[PERSONA: ${persona.name.toUpperCase()}]\n${personaPrompt}`,
     `[SKILL: ${skill.name.toUpperCase()}]\n${skill.systemPrompt}`,
     `[RULES]\n${rulesPrompt}`,
     safetyBlock,

@@ -2,7 +2,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, RotateCcw, Edit2, Coins } from "lucide-react";
 import { useState } from "react";
 import type { Message } from "../store/chat";
 import { ActivityLog } from "./ActivityLog";
@@ -12,7 +12,7 @@ import { parseResponse } from "../helpers/parse-response";
 import { useSettings } from "../store/settings";
 import { cn } from "@/lib/utils";
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, className }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     await navigator.clipboard.writeText(text);
@@ -22,7 +22,11 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={copy}
-      className="p-1 rounded hover:bg-[hsl(260_20%_18%)] text-[hsl(265_15%_50%)] hover:text-purple-300 transition-colors"
+      title="Copy"
+      className={cn(
+        "p-1 rounded hover:bg-[hsl(260_20%_18%)] text-[hsl(265_15%_50%)] hover:text-purple-300 transition-colors",
+        className
+      )}
     >
       {copied ? <Check size={12} /> : <Copy size={12} />}
     </button>
@@ -121,19 +125,78 @@ function Prose({ content, isStreaming }: { content: string; isStreaming?: boolea
 interface MessageBubbleProps {
   message: Message;
   onSend: (content: string) => void;
+  onRetry?: () => void;
+  onEdit?: (content: string) => void;
   isLastMessage: boolean;
+  isLastUserMessage?: boolean;
   globalStreaming: boolean;
 }
 
-export function MessageBubble({ message, onSend, isLastMessage, globalStreaming }: MessageBubbleProps) {
+export function MessageBubble({
+  message, onSend, onRetry, onEdit,
+  isLastMessage, isLastUserMessage, globalStreaming,
+}: MessageBubbleProps) {
   const { settings } = useSettings();
   const isUser = message.role === "user";
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(message.content);
 
   if (isUser) {
+    if (editing) {
+      return (
+        <div className="flex justify-end mb-3 msg-appear">
+          <div className="max-w-[90%] w-full">
+            <textarea
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              rows={3}
+              className="w-full px-3.5 py-2.5 rounded-2xl bg-[hsl(260_22%_12%)] border border-[hsl(270_45%_38%/0.6)] text-[hsl(270_20%_90%)] text-[13px] leading-relaxed outline-none resize-none"
+              autoFocus
+            />
+            <div className="flex gap-2 mt-1.5 justify-end">
+              <button
+                onClick={() => setEditing(false)}
+                className="text-[10px] px-2.5 py-1 rounded-lg text-[hsl(265_15%_45%)] hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const v = editValue.trim();
+                  if (v && onEdit) { onEdit(v); }
+                  setEditing(false);
+                }}
+                className="text-[10px] px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white transition-colors"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex justify-end mb-3 msg-appear">
-        <div className="max-w-[82%] px-3.5 py-2.5 rounded-2xl rounded-br-md bg-[hsl(260_22%_15%)] border border-[hsl(260_18%_22%)] text-[hsl(270_20%_90%)] text-[13px] leading-relaxed">
-          {message.content}
+      <div className="flex justify-end mb-3 msg-appear group">
+        <div className="flex items-end gap-1.5 max-w-[90%]">
+          {/* Edit/Copy actions (appear on hover) */}
+          {!globalStreaming && (
+            <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pb-0.5">
+              {isLastUserMessage && onEdit && (
+                <button
+                  onClick={() => { setEditValue(message.content); setEditing(true); }}
+                  title="Edit"
+                  className="p-1 rounded text-[hsl(265_15%_45%)] hover:text-purple-300 transition-colors"
+                >
+                  <Edit2 size={11} />
+                </button>
+              )}
+              <CopyButton text={message.content} />
+            </div>
+          )}
+          <div className="px-3.5 py-2.5 rounded-2xl rounded-br-md bg-[hsl(260_22%_15%)] border border-[hsl(260_18%_22%)] text-[hsl(270_20%_90%)] text-[13px] leading-relaxed">
+            {message.content}
+          </div>
         </div>
       </div>
     );
@@ -143,14 +206,12 @@ export function MessageBubble({ message, onSend, isLastMessage, globalStreaming 
   const hasContent = !!message.content;
   const isGenerating = isStreaming && !hasContent;
 
-  // Parse only the last AI message, only after it finishes streaming
   const canParse = isLastMessage && !isStreaming && hasContent;
   const parsed = canParse ? parseResponse(message.content) : null;
   const hasBlock = parsed && parsed.blockType !== "none";
 
   return (
-    <div className="mb-4 msg-appear">
-      {/* Activity log */}
+    <div className="mb-4 msg-appear group">
       {message.steps && message.steps.length > 0 && (
         <ActivityLog
           steps={message.steps}
@@ -161,10 +222,8 @@ export function MessageBubble({ message, onSend, isLastMessage, globalStreaming 
 
       {hasContent ? (
         hasBlock ? (
-          /* ── Parsed: prose + interactive block + optional after-text ── */
           <>
             {parsed!.prose && <Prose content={parsed!.prose} />}
-
             {(parsed!.blockType === "choices" || parsed!.blockType === "confirm") && (
               <ChoiceCards
                 choices={parsed!.choices}
@@ -173,7 +232,6 @@ export function MessageBubble({ message, onSend, isLastMessage, globalStreaming 
                 type={parsed!.blockType}
               />
             )}
-
             {parsed!.blockType === "questions" && (
               <QuestionForm
                 prose={parsed!.prose}
@@ -182,8 +240,6 @@ export function MessageBubble({ message, onSend, isLastMessage, globalStreaming 
                 disabled={globalStreaming}
               />
             )}
-
-            {/* After-text: model's closing line after the list */}
             {parsed!.afterText && (
               <div className="mt-2">
                 <Prose content={parsed!.afterText} />
@@ -191,7 +247,6 @@ export function MessageBubble({ message, onSend, isLastMessage, globalStreaming 
             )}
           </>
         ) : (
-          /* ── Plain markdown response ── */
           <Prose content={message.content} isStreaming={isStreaming} />
         )
       ) : isGenerating ? (
@@ -205,6 +260,28 @@ export function MessageBubble({ message, onSend, isLastMessage, globalStreaming 
           ))}
         </div>
       ) : null}
+
+      {/* Message actions (copy + retry) */}
+      {hasContent && !isStreaming && (
+        <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <CopyButton text={message.content} />
+          {isLastMessage && onRetry && !globalStreaming && (
+            <button
+              onClick={onRetry}
+              title="Retry"
+              className="p-1 rounded hover:bg-[hsl(260_20%_18%)] text-[hsl(265_15%_50%)] hover:text-purple-300 transition-colors"
+            >
+              <RotateCcw size={12} />
+            </button>
+          )}
+          {message.tokenCount != null && message.tokenCount > 0 && (
+            <span className="flex items-center gap-0.5 text-[9px] text-[hsl(265_15%_32%)] ml-1">
+              <Coins size={9} />
+              {message.tokenCount.toLocaleString()}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

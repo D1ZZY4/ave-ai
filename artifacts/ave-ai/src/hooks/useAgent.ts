@@ -7,6 +7,7 @@ import { runFastSession, runExpertSession } from "../helpers/orchestrator";
 import { buildRegistry } from "../helpers/registry";
 import { modeTransitionManager } from "../helpers/modeTransition";
 import { useOfflineQueue } from "./useOfflineQueue";
+import { notifyResponse } from "../helpers/notifications";
 import type { OllamaMessage } from "../helpers/ollama";
 import type { ThinkingStep, OfflineQueueItem } from "../types";
 
@@ -32,8 +33,10 @@ function thinkingToProcessStep(step: ThinkingStep): ProcessStep {
 
 export function useAgent() {
   const { settings } = useSettings();
-  const { createSession, addMessage, updateMessage, updateSessionTitle, activeSessionId, activeSession } =
-    useChatStore();
+  const {
+    createSession, addMessage, updateMessage, updateSessionTitle,
+    activeSessionId, activeSession, updateSessionTokens,
+  } = useChatStore();
   const sessionStore = useSessionStore();
   const abortRef = useRef<AbortController | null>(null);
 
@@ -58,6 +61,15 @@ export function useAgent() {
       });
   }, [sessionStore]);
 
+  // ─── Diagram 44: Graceful shutdown — save state on unload ────────────────
+  useEffect(() => {
+    const handler = () => {
+      abortRef.current?.abort();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
   const sendMessage = useCallback(
     async (userContent: string, sessionId?: string) => {
       if (!navigator.onLine) {
@@ -75,7 +87,9 @@ export function useAgent() {
         activeSessionId ||
         createSession(settings.selectedModel, settings.selectedPersona, "general");
 
-      const currentSession = activeSession;
+      const currentSession = sessionId
+        ? undefined
+        : activeSession;
       const allMessages = currentSession?.messages || [];
       const mode = settings.chatMode;
 
@@ -123,6 +137,8 @@ export function useAgent() {
         enableThinking: settings.enableThinking,
         enableTools: settings.enableTools && mode === "expert",
         signal: ctrl.signal,
+        systemPromptOverride: (settings.systemPromptOverrides ?? {})[settings.selectedPersona] || undefined,
+        numPredict: settings.maxOutputTokens,
       };
 
       sessionStore.setSessionActive(currentSessionId, mode, settings.selectedPersona);
@@ -183,15 +199,26 @@ export function useAgent() {
           content: result.finalAnswer,
           isStreaming: false,
           steps: allSteps.map((s) => ({ ...s, status: "done" })),
+          tokenCount: result.tokenCount,
         });
 
         sessionStore.setFinalAnswer(result.finalAnswer);
+
+        // ─── Diagram 46: Track token usage per conversation ────────────────
+        if (result.tokenCount > 0) {
+          updateSessionTokens(currentSessionId, result.tokenCount);
+        }
 
         if (allMessages.length === 0) {
           updateSessionTitle(
             currentSessionId,
             userContent.slice(0, 60).trim() || "New conversation"
           );
+        }
+
+        // ─── Diagram 51: Notification when response complete ───────────────
+        if (settings.enableNotifications) {
+          notifyResponse(settings.selectedPersona);
         }
       } catch (err) {
         if (err instanceof Error && (err.name === "AbortError" || ctrl.signal.aborted)) {
@@ -209,7 +236,53 @@ export function useAgent() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [settings, activeSessionId, activeSession, createSession, addMessage, updateMessage, updateSessionTitle, sessionStore]
+    [settings, activeSessionId, activeSession, createSession, addMessage, updateMessage, updateSessionTitle, updateSessionTokens, sessionStore]
+  );
+
+  // ─── Diagram 41: Auto-greeting — send brief greeting on new conversation ──
+  const sendGreeting = useCallback(
+    async (sessionId: string) => {
+      if (!settings.selectedModel) return;
+
+      const ctrl = new AbortController();
+      const greetingMsgId = addMessage(sessionId, {
+        role: "assistant",
+        content: "",
+        isStreaming: true,
+        model: settings.selectedModel,
+      });
+
+      try {
+        const result = await runFastSession(
+          "__greeting__",
+          [],
+          {
+            mode: "fast",
+            personaId: settings.selectedPersona,
+            skillId: "general",
+            model: settings.selectedModel,
+            baseUrl: settings.baseUrl,
+            enableThinking: false,
+            enableTools: false,
+            signal: ctrl.signal,
+            systemPromptOverride: (settings.systemPromptOverrides ?? {})[settings.selectedPersona] || undefined,
+            isGreeting: true,
+          }
+        );
+        if (!ctrl.signal.aborted) {
+          updateMessage(sessionId, greetingMsgId, {
+            content: result.finalAnswer,
+            isStreaming: false,
+          });
+        }
+      } catch {
+        updateMessage(sessionId, greetingMsgId, {
+          content: "Hello! How can I help you today?",
+          isStreaming: false,
+        });
+      }
+    },
+    [settings, addMessage, updateMessage]
   );
 
   // ─── Offline Queue flush handler (Diagram 29) ─────────────────────────────
@@ -229,6 +302,7 @@ export function useAgent() {
 
   return {
     sendMessage,
+    sendGreeting,
     stopGeneration,
     isOnline: offlineQueue.isOnline,
     offlineQueueSize: offlineQueue.queueSize,

@@ -13,6 +13,10 @@ interface Settings {
   showProcessLog: boolean;
   username: string;
   customModels: string[];
+  enableNotifications: boolean;
+  maxOutputTokens: number;
+  systemPromptOverrides: Record<string, string>;
+  autoGreeting: boolean;
 }
 
 interface SettingsContextValue {
@@ -31,6 +35,10 @@ const DEFAULT_SETTINGS: Settings = {
   showProcessLog: true,
   username: "you",
   customModels: [],
+  enableNotifications: false,
+  maxOutputTokens: 2048,
+  systemPromptOverrides: {},
+  autoGreeting: true,
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
