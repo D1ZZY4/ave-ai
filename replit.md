@@ -1,126 +1,108 @@
-# Ave AI
+# Flow Ave AI — Full Implementation Blueprint
 
-A mobile-first AI chat interface for Ollama — built with React, TypeScript, Tailwind CSS, and Vite. Designed to feel like a real AI agent, not just a chatbot.
+This project is a mobile‑first AI agent interface for Ollama, based on a comprehensive architecture documented in 18 flow files (`flow-1.md` through `flow-18.md`) and a detailed folder structure (`project-structure.md`). All files are located in the `planning/` folder.
 
-## Run & Operate
+**Your task as Replit Agent:** implement the entire system by reading and following these files in order. Start with the core architecture, then build out each module. Each file contains Mermaid diagrams and detailed English explanations that serve as the exact blueprint.
 
-- `pnpm --filter @workspace/ave-ai run dev` — run the Ave AI web app
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
+---
 
-## Stack
+## Implementation Order
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- React 19 + Vite 7 + Tailwind CSS v4
-- State: React Context (settings + chat sessions)
-- Ollama REST API for streaming chat
+### Step 0: Read the project structure
+1. Open `planning/project-structure.md`.
+2. Create the exact monorepo layout shown in the diagram, including all folders and files mentioned.
+3. Initialize the pnpm workspace, TypeScript configs, and Vite app.
 
-## Folder Structure
+### Step 1: Core Architecture
+1. Open `planning/flow-1.md`.
+2. Implement **diagrams 1–15**: Project root structure, agents top-level structure, frontend structure, macro architecture & data flow, main execution loop with three validation gates (PII, injection, toxicity), state machine for Fast vs Expert mode, rules engine evaluation flow, control hierarchy & ThinkingBox rendering, folder overviews for personas/rules/skills/tools/web/helpers, and complete end-to-end system flow.
 
-```
-artifacts/ave-ai/src/
-│
-├── rules/              ← AI behavior rules (modular, tagged, prioritized)
-│   ├── greeting.ts     ← first-message welcome (adapts per persona)
-│   ├── tone.ts         ← communication standards (always applies)
-│   ├── language.ts     ← user language matching (always applies)
-│   ├── agent.ts        ← autonomous agent behavior
-│   ├── context.ts      ← conversation memory (applies after 2+ messages)
-│   ├── thinking.ts     ← reasoning instructions (when thinking enabled)
-│   ├── expert-mode.ts  ← deep analysis (when Expert mode)
-│   ├── fast-mode.ts    ← speed-optimized (when Fast mode)
-│   ├── safety.ts       ← absolute guardrails (highest priority, always)
-│   └── index.ts        ← registry + compileRules(ctx) → system prompt
-│
-├── personas/           ← 7 distinct AI personas, each in its own file
-│   ├── ave-prime.ts    ← balanced, adaptable (default)
-│   ├── muse.ts         ← creative, vivid, lateral thinking
-│   ├── architect.ts    ← systematic, technical, first-principles
-│   ├── diplomat.ts     ← nuanced, measured, multi-perspective
-│   ├── sage.ts         ← philosophical, wisdom-seeking
-│   ├── maverick.ts     ← bold, contrarian, assumption-breaking
-│   ├── mentor.ts       ← patient, teaching, encouraging
-│   └── index.ts        ← registry + getPersona()
-│
-├── skills/             ← conversation focus modes
-│   ├── general.ts, developer.ts, summary.ts, prd.ts
-│   └── index.ts        ← registry + detectSkill() (auto-detect from message)
-│
-├── tools/              ← AI-callable tools
-│   ├── calculator.ts, current-time.ts, web-search.ts
-│   └── index.ts        ← registry + executeTool()
-│
-├── helpers/            ← utility code
-│   ├── ollama.ts       ← Ollama API client + streaming
-│   ├── thinking.ts     ← real-time <think> block parser
-│   └── storage.ts      ← localStorage helpers
-│
-├── store/              ← React context (settings, chat sessions/messages)
-├── hooks/              ← useChat (send/stop/rules pipeline), useModels
-├── components/         ← UI — ActivityLog, ChatInput, Sidebar, Modals...
-└── pages/              ← Home (welcome), Chat (active conversation)
-```
+### Step 2: Personas & Rules
+1. Open `planning/flow-2.md`.
+2. Create every file shown in the `agents/personas/` folder (8 persona files + barrel export).
+3. Create every file shown in the `agents/rules/` folder (12 rule files + barrel export).
+4. Follow the per‑file diagrams exactly for each file.
 
-## Agent Architecture — How a Message is Processed
+### Step 3: Skills & Tools
+1. Open `planning/flow-3.md`.
+2. Implement all 14 skill files in `agents/skills/` (auto-skills, codex, mermaid-diagram, prd, python-code-style, seo, summarize, tdd, telegram-bot-builder, ui-ux-designer, web-app-testing, web-performance, web-quality, barrel).
+3. Implement all 8 tool files in `agents/tools/` (calculator, count, current-time, if-web-enabled-or-disabled, pdf, read-file, write-file, barrel).
 
-```
-User sends message
-        │
-        ▼
-1. Auto-detect Skill (or use manual selection)
-        │
-        ▼
-2. Load Persona (from personas/)
-        │
-        ▼
-3. Compile Rules (rules/index.ts → compileRules(ctx))
-   - Evaluates conditions: isFirstMessage, mode, messageCount, etc.
-   - Sorts by priority (safety=200, greeting=100, language=90...)
-   - Returns rulesPrompt + appliedRules[]
-        │
-        ▼
-4. Build Layered System Prompt:
-   [SKILL] + [PERSONA] + [RULES]
-        │
-        ▼
-5. Stream to Ollama (with all tools registered)
-        │
-        ▼
-6. Parse streaming response:
-   ├── <think>...</think> → real-time thinking display
-   ├── tool_calls → execute tool, feed result back
-   └── content → stream to UI
-        │
-        ▼
-7. Activity Log shown in UI:
-   Skill → Persona → Mode → Rules → Thinking → Tool Calls
-```
+### Step 4: Web Tools (Part 1)
+1. Open `planning/flow-4.md`.
+2. Implement the first 16 web tool files in `agents/web/`: web-api-caller, web-authenticator, web-browser, web-cache-reader, web-crawling, web-diff, web-downloader, web-feed-parser, web-fetcher, web-form-submitter, web-harvester, web-headless-scraper, web-link-extractor, web-metadata-extractor, web-monitor, and the barrel file.
 
-## Rules System
+### Step 5: Web Tools (Part 2)
+1. Open `planning/flow-5.md`.
+2. Implement the remaining 15 web tools: web-navigator, web-paginator, web-parser, web-qrcode-reader, web-reader, web-robots-txt, web-scraping, web-screenshot, web-search, web-sitemap-parser, web-socket-listener, web-spider, web-summarizer, web-validator, web-video-extractor.
+3. Complete the barrel export file.
 
-Each rule file exports a `Rule` object:
-- `tags[]` — categorization
-- `priority` — higher = applied first (safety=200 is absolute)
-- `condition(ctx)` — optional, determines if rule applies
-- `instruction` — string or function returning string
+### Step 6: Helpers
+1. Open `planning/flow-6.md`.
+2. Create all 16 helper utilities in `frontend/src/helpers/`: cache.ts, compression.ts, healthCheck.ts, injectionDetector.ts, ollama.ts, parse-choose-option-to-ui.ts, parse-diagram-to-ui.ts, parse-response-to-ui.ts, parse-selection-to-ui.ts, piiDetector.ts, rateLimit.ts, sanitizer.ts, storage.ts, thinking.ts, tokenizer.ts, toxicityAnalyzer.ts.
 
-To add a new rule: create `src/rules/my-rule.ts`, export a `Rule`, register in `index.ts`.
+### Step 7: Core Systems & UI Interactions
+1. Open `planning/flow-7.md`.
+2. Implement: deployment & communication setup, app initialization with dynamic registry, optimized agent memory, prompt template structure (with model adaptation), TypeScript core type definitions, concurrency & abort controller, security hardening (CSP & XSS prevention), offline detection & queue (PWA), service worker & PWA manifest, settings flow (load, edit, save, test connection), conversation management (new, switch, delete), chat history storage & retrieval, settings toggles, model selection, cancel/stop response, copy message, retry message, edit & resend message, Qwen3 thinking & vision integration.
 
-## Personas
+### Step 8: Advanced Features
+1. Open `planning/flow-8.md`.
+2. Implement: model loading & warm‑up, graceful shutdown & cleanup, voice & image input, token usage display, search in chat history, export conversation (JSON/Markdown/PDF), keyboard shortcuts, dark mode / theme switch, notifications (sound/vibrate), system prompt customization, Ollama health check & reconnect, max output token control, Skills.sh integration (skill discovery + hybrid registry), memory system (folder structure, fact extraction flow, prompt injection).
 
-7 personas each with distinct `systemPrompt`. Each has a color accent in the UI.
-To add a persona: create `src/personas/my-persona.ts`, add to `ALL_PERSONAS` in `index.ts`.
+### Step 9: State, Hooks, Components & API Integration
+1. Open `planning/flow-9.md`.
+2. Build: Zustand chat store (`store/chat.tsx`), Zustand settings store (`store/settings.tsx`), `hooks/useChat.ts` (primary chat hook with full internal flow), `hooks/useThinking.ts` (thinking step selector), `hooks/useModels.ts` (model management), `hooks/use-mobile.tsx` & `hooks/use-toast.ts`, full component tree hierarchy, `ChatInput.tsx` (component behavior), `MessageBubble.tsx` (rendering & actions), `ThinkingBox.tsx` (typewriter animation + spinner), `Sidebar.tsx` (conversation list), `SettingsModal.tsx` (tabbed structure), auto‑generated fetch client (`lib/api-client-react/`), optional backend server, optional database schema, complete Zustand store shape, and `useChat` full internal flow.
 
-## User Preferences
+### Step 10: Testing, Build, Dependencies & Roadmap
+1. Open `planning/flow-10.md`.
+2. Configure: testing strategy (Vitest + Testing Library + Playwright), environment variables, scripts & build pipeline, monorepo layout, package.json dependencies, CSS / styling architecture (Tailwind CSS + shadcn/ui), internationalization (i18n) preparation, telemetry (optional, off by default), roadmap & extensibility points, complete file tree.
 
-- All UI text and system prompts in English
-- AI output always matches user's language (language rule enforces this)
-- Mobile-first: compact sizing, large rounded corners
-- No sycophantic language — toneRule enforces this
-- "Local instance" instead of any tier/node labels
+### Step 11: UI Components Detail
+1. Open `planning/flow-11.md`.
+2. Implement: `ActivityLog.tsx` (real‑time process log with expandable entries), `ChoiceCards.tsx` (clickable option buttons with animations), `Header.tsx` (mode toggle, token bar, persona/model selectors), `QuestionForm.tsx` (text + image + voice input), `HistoryModal.tsx` (browse, search, export, delete conversations), `SkillsModal.tsx` (installed + remote Skills.sh tabs), `ToolsModal.tsx` (tool inspector with rate limits), `WebModal.tsx` (web tool manager with global/per‑tool toggles).
 
-## Gotchas
+### Step 12: Memory Folder
+1. Open `planning/flow-12.md`.
+2. Implement the five files inside `agents/memory/`: `index.ts` (barrel export), `types.ts` (MemoryFact interface), `store.ts` (IndexedDB CRUD operations), `extractor.ts` (LLM‑based fact extraction from assistant responses), `retriever.ts` (load facts and format for prompt injection).
 
-- Ollama must run at the configured base URL (default: http://localhost:11434)
-- Thinking display requires a model that outputs `<think>...</think>` tags (qwen3, deepseek-r1, etc.)
-- `ERR_CONNECTION_REFUSED` in browser = Ollama not reachable (expected in this dev environment)
+### Step 13: Replit‑Style Thinking Flow & AI Storage
+1. Open `planning/flow-13.md`.
+2. Implement: step‑by‑step thought → action → observation streaming (Replit‑style), AI agent storage architecture (workspace/, uploads/, cache/, data/ folders with access rules), file upload & AI processing flow, storage folder lifecycle (create, clean, archive), tool access control matrix.
+
+### Step 14: System Hardening & Edge Cases
+1. Open `planning/flow-14.md`.
+2. Implement: graceful degradation on connection loss, malicious input handling (sanitization → injection → PII → toxicity), LLM response anomaly handling (malformed JSON repair), rate limiting & resource protection, token budget overflow protection, abort controller cleanup on navigation, concurrent tool execution safety, security headers & CSP for backend proxy, error boundary & crash recovery, sensitive data redaction on export.
+
+### Step 15: Multi‑Modal & Model Management
+1. Open `planning/flow-15.md`.
+2. Implement: visual input pipeline (image → base64 → multimodal prompt), voice input pipeline (MediaRecorder → Whisper/SpeechRecognition), multi‑modal output rendering (text, code, mermaid diagrams, images, tables, JSON), model switching & warm‑up, model download & pull progress, model capability detection (Qwen, Llama, Mistral, DeepSeek), multi‑modal integration summary.
+
+### Step 16: Parallel Task Execution & Archive Tools
+1. Open `planning/flow-16.md`.
+2. Implement: parallel task execution architecture (task analyzer → parallel pool / sequential queue), parallel task worker pool, task decomposition logic (DAG + topological sort), archive tools (`agents/tools/archive.ts` — extract/compress ZIP, TAR, GZ, 7Z, RAR), archive format support matrix, archive processing flow, rules update for archive tools.
+
+### Step 17: Statistics Dashboard & Analytics
+1. Open `planning/flow-17.md`.
+2. Implement: `StatisticsModal.tsx` with 6 tabs (Overview, Tokens, Tools, Skills, Conversations, Performance), data sources & tracking architecture, automatic metrics collection (messages, tools, tokens, time, errors), chart visualizations, export as JSON/CSV, integration with Header and Sidebar.
+
+### Step 18: Agent Feedback & Behavior Adaptation
+1. Open `planning/flow-18.md`.
+2. Implement: feedback collection UI (thumbs‑up/down in MessageBubble with reason dialog), feedback storage & aggregation (by persona, tool, mode, time), feedback‑driven rule adjustment (auto‑tweak tone, suggest mode/tool changes), feedback‑driven memory updates (boost/reduce fact confidence), end‑to‑end feedback loop, Feedback tab in StatisticsModal.
+
+---
+
+## Important Notes
+
+- **Each Mermaid diagram is the exact specification** — implement the flow/states exactly as drawn.
+- **TypeScript interfaces** are defined in `flow-7.md` (diagram 5); reuse them everywhere.
+- **Zustand store shapes** are in `flow-9.md` (diagrams 1 & 2).
+- **Ollama client** is described in `flow-6.md` (diagram 6) — use that helper for all API calls.
+- **The main execution loop** with three validation gates is in `flow-1.md` (diagram 5).
+- **The Replit‑style thinking box behavior** is described in `flow-13.md` (diagram 1) and `flow-9.md` (diagram 10).
+- **Do not skip any diagram** — each one contributes a piece of the final system.
+- After implementing a file, tell me which file you completed so I can guide you to the next one.
+- **All files are located in the `planning/` folder.** Start by listing and reading them.
+
+---
+
+**Start by reading `planning/project-structure.md` and `planning/flow-1.md`, then implement.**
