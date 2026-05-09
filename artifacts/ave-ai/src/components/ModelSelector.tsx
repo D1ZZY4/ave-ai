@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { useSettings } from "../store/settings";
 import { useModels } from "../hooks/useModels";
 import { Switch } from "@/components/ui/switch";
-import { warmUpModel } from "../helpers/modelWarmup";
 
 export function ModelSelector() {
   const { settings, updateSettings } = useSettings();
@@ -47,7 +46,6 @@ export function ModelSelector() {
 
       {open && (
         <div className="absolute top-full left-0 mt-1.5 w-68 rounded-2xl border border-[hsl(260_18%_17%)] bg-[hsl(258_28%_8%)] shadow-2xl z-50 overflow-hidden slide-up" style={{ width: "17rem" }}>
-          {/* Header */}
           <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-[hsl(260_18%_13%)]">
             <span className="text-[9px] font-semibold uppercase tracking-widest text-[hsl(265_15%_40%)]">Models</span>
             <button
@@ -59,7 +57,6 @@ export function ModelSelector() {
             </button>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="px-3.5 py-2.5 flex items-start gap-2 text-[11px] text-red-400 border-b border-[hsl(260_18%_13%)]">
               <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
@@ -67,7 +64,6 @@ export function ModelSelector() {
             </div>
           )}
 
-          {/* Model list */}
           <div className="max-h-52 overflow-y-auto scrollbar-hide">
             {loading && !models.length ? (
               <div className="px-4 py-4 text-[11px] text-[hsl(265_15%_42%)] text-center">Loading models…</div>
@@ -80,7 +76,6 @@ export function ModelSelector() {
                   onClick={() => {
                     updateSettings({ selectedModel: model.name });
                     setOpen(false);
-                    warmUpModel(settings.baseUrl, model.name);
                   }}
                   className={cn(
                     "w-full text-left px-3.5 py-2.5 transition-colors",
@@ -112,7 +107,6 @@ export function ModelSelector() {
             )}
           </div>
 
-          {/* Reasoning toggle */}
           <div className="border-t border-[hsl(260_18%_13%)] px-3.5 py-2.5 flex items-center justify-between">
             <div>
               <div className="text-[12px] font-medium text-[hsl(270_20%_85%)]">Reasoning</div>

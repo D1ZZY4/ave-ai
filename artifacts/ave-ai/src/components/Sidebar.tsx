@@ -3,10 +3,33 @@ import {
   Trash2, MoreHorizontal, X, Search, Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useChat } from "../store/chat";
+import { useChat, type ChatSession } from "../store/chat";
 import { useSettings } from "../store/settings";
 import { useState, useMemo, useRef, useEffect } from "react";
-import { exportToMarkdown, exportToJSON } from "../helpers/exportConversation";
+
+function exportToMarkdown(session: ChatSession) {
+  const lines = [`# ${session.title}`, `> ${new Date(session.createdAt).toLocaleString()}`, ""];
+  for (const msg of session.messages) {
+    lines.push(`**${msg.role === "user" ? "You" : "Ave AI"}**`, "", msg.content, "");
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${session.title.replace(/[^a-z0-9]/gi, "-")}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportToJSON(session: ChatSession) {
+  const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${session.title.replace(/[^a-z0-9]/gi, "-")}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -15,9 +38,7 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onOpenSkills: () => void;
   onOpenTools: () => void;
-  /** Diagram 49: Ctrl+K — parent registers focus fn */
   onRegisterSearchFocus?: (fn: () => void) => void;
-  /** Diagram 47: When a filtered session is clicked, also return matched messageId */
   onSelectWithMatch?: (sessionId: string, messageId?: string) => void;
 }
 
@@ -32,15 +53,11 @@ export function Sidebar({
   const [exportMenu, setExportMenu] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Diagram 49: Register focus handler with parent
   useEffect(() => {
     if (!onRegisterSearchFocus) return;
-    onRegisterSearchFocus(() => {
-      searchInputRef.current?.focus();
-    });
+    onRegisterSearchFocus(() => { searchInputRef.current?.focus(); });
   }, [onRegisterSearchFocus]);
 
-  // Diagram 47: When searching, record which message matched per session
   const filteredSessions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return sessions.slice(0, 30).map((s) => ({ session: s, matchedMsgId: undefined as string | undefined }));
@@ -58,9 +75,7 @@ export function Sidebar({
 
   const handleSelectSession = (sessionId: string, matchedMsgId?: string) => {
     setActiveSession(sessionId);
-    if (onSelectWithMatch) {
-      onSelectWithMatch(sessionId, matchedMsgId);
-    }
+    if (onSelectWithMatch) onSelectWithMatch(sessionId, matchedMsgId);
     onClose();
   };
 
@@ -79,7 +94,6 @@ export function Sidebar({
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {/* Logo + close */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3">
           <span className="font-logo text-2xl text-purple-400">ave ai</span>
           <button
@@ -90,7 +104,6 @@ export function Sidebar({
           </button>
         </div>
 
-        {/* New chat */}
         <div className="px-3 pb-2">
           <button
             onClick={() => { onNewChat(); onClose(); }}
@@ -101,7 +114,6 @@ export function Sidebar({
           </button>
         </div>
 
-        {/* Search — Diagram 47 + Diagram 49 */}
         <div className="px-3 pb-2">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[hsl(258_25%_8%)] border border-[hsl(260_18%_15%)]">
             <Search size={12} className="text-[hsl(265_15%_38%)] flex-shrink-0" />
@@ -120,7 +132,6 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Nav */}
         <div className="px-3 py-1 space-y-0.5">
           {[
             { icon: <History size={14} />, label: "History", onClick: onClose },
@@ -138,10 +149,8 @@ export function Sidebar({
           ))}
         </div>
 
-        {/* Divider */}
         <div className="mx-3 my-2 border-t border-[hsl(260_18%_12%)]" />
 
-        {/* Recent chats */}
         <div className="flex-1 overflow-y-auto px-3 scrollbar-hide">
           {filteredSessions.length > 0 ? (
             <>
@@ -161,7 +170,6 @@ export function Sidebar({
                       )}
                     >
                       <div className="truncate">{session.title}</div>
-                      {/* Diagram 47: Show matched message snippet */}
                       {matchedMsgId && searchQuery && (() => {
                         const msg = session.messages.find((m) => m.id === matchedMsgId);
                         if (!msg) return null;
@@ -169,9 +177,7 @@ export function Sidebar({
                         const idx = msg.content.toLowerCase().indexOf(q);
                         const snippet = msg.content.slice(Math.max(0, idx - 20), idx + 40);
                         return (
-                          <div className="text-[9px] text-[hsl(265_15%_38%)] mt-0.5 truncate">
-                            …{snippet}…
-                          </div>
+                          <div className="text-[9px] text-[hsl(265_15%_38%)] mt-0.5 truncate">…{snippet}…</div>
                         );
                       })()}
                       {session.totalTokens != null && session.totalTokens > 0 && (
@@ -238,7 +244,6 @@ export function Sidebar({
           )}
         </div>
 
-        {/* User profile */}
         <div className="px-3 py-3 border-t border-[hsl(260_18%_12%)]">
           <button
             onClick={() => { onOpenSettings(); onClose(); }}

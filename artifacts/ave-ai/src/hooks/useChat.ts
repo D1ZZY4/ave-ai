@@ -29,7 +29,7 @@ export function useChatActions() {
   }, []);
 
   const sendMessage = useCallback(
-    async (userContent: string, sessionId?: string) => {
+    async (userContent: string, sessionId?: string, images?: string[]) => {
       const currentSessionId =
         sessionId ||
         activeSessionId ||

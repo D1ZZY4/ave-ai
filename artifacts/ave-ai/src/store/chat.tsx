@@ -1,7 +1,17 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { storageGet, storageSet } from "../helpers/storage";
-import type { AgentMode, ThinkingStep } from "../types";
+
+export type AgentMode = "fast" | "expert";
+
+export interface ThinkingStep {
+  stepNumber: number;
+  thought?: string;
+  action?: string;
+  execType?: string;
+  actionInput?: unknown;
+  observation?: string;
+}
 
 export type ProcessStepType =
   | "skill"
@@ -32,7 +42,6 @@ export interface Message {
   timestamp: number;
   model?: string;
   tokenCount?: number;
-  /** Diagram 45: base64 images attached by user */
   images?: string[];
 }
 

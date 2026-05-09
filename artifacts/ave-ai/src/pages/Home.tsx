@@ -9,7 +9,7 @@ import { SettingsModal } from "../components/SettingsModal";
 import { SkillsModal } from "../components/SkillsModal";
 import { ToolsModal } from "../components/ToolsModal";
 import { useChat } from "../store/chat";
-import { useAgent } from "../hooks/useAgent";
+import { useChatActions } from "../hooks/useChat";
 import { detectSkill } from "../skills/index";
 
 interface HomeProps {
@@ -24,7 +24,7 @@ const MODE_DESC: Record<ChatMode, string> = {
 export function Home({ onChatStarted }: HomeProps) {
   const { settings, updateSettings } = useSettings();
   const { createSession, setActiveSession } = useChat();
-  const { sendMessage } = useAgent();
+  const { sendMessage } = useChatActions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);

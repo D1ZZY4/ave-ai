@@ -1,4 +1,3 @@
-import type { FlowPersona } from "../types";
 import { avePrime } from "./ave-prime";
 import { muse } from "./muse";
 import { architect } from "./architect";
@@ -7,9 +6,19 @@ import { sage } from "./sage";
 import { maverick } from "./maverick";
 import { mentor } from "./mentor";
 
-export type { FlowPersona as Persona };
+export interface Persona {
+  id: string;
+  name: string;
+  description: string;
+  icon?: string;
+  color?: string;
+  systemPrompt: string;
+  expertPrompt?: string;
+  toneInstruction?: string;
+  safetyRules?: string[];
+}
 
-export const ALL_PERSONAS: FlowPersona[] = [
+export const ALL_PERSONAS: Persona[] = [
   avePrime,
   muse,
   architect,
@@ -19,7 +28,7 @@ export const ALL_PERSONAS: FlowPersona[] = [
   mentor,
 ];
 
-export function getPersona(id: string): FlowPersona {
+export function getPersona(id: string): Persona {
   return ALL_PERSONAS.find((p) => p.id === id) ?? avePrime;
 }
 

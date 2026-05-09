@@ -1,6 +1,4 @@
-import type { FlowPersona } from "../types";
-
-export const avePrime: FlowPersona = {
+export const avePrime = {
   id: "ave-prime",
   name: "Ave Prime",
   description: "Balanced and naturally helpful",

@@ -1,6 +1,4 @@
-import type { FlowPersona } from "../types";
-
-export const diplomat: FlowPersona = {
+export const diplomat = {
   id: "diplomat",
   name: "Diplomat",
   description: "Nuanced, measured, and academically thorough",

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Bell, BellOff, Coins, AlertTriangle } from "lucide-react";
 import { useChat } from "../store/chat";
 import { useSettings } from "../store/settings";
-import { useAgent } from "../hooks/useAgent";
+import { useChatActions } from "../hooks/useChat";
 import { MessageList } from "../components/MessageList";
 import { ChatInput } from "../components/ChatInput";
 import { Sidebar } from "../components/Sidebar";
@@ -11,25 +11,30 @@ import { SkillsModal } from "../components/SkillsModal";
 import { ToolsModal } from "../components/ToolsModal";
 import { ModelSelector } from "../components/ModelSelector";
 import { PersonaSelector } from "../components/PersonaSelector";
-import { ThinkingBox } from "../components/ThinkingBox";
-import { requestNotificationPermission } from "../helpers/notifications";
 import { cn } from "@/lib/utils";
 
-// Diagram 46: Approximate context window for warning calculation
 const CONTEXT_WINDOW_ESTIMATE = 32768;
 
 interface ChatProps {
   onBack: () => void;
 }
 
+async function requestNotificationPermission(): Promise<boolean> {
+  if (!("Notification" in window)) return false;
+  if (Notification.permission === "granted") return true;
+  if (Notification.permission === "denied") return false;
+  const result = await Notification.requestPermission();
+  return result === "granted";
+}
+
 export function Chat({ onBack }: ChatProps) {
   const {
     activeSession, createSession, setActiveSession,
-    deleteMessage, updateMessage, addMessage, activeSessionId,
+    deleteMessage, addMessage, activeSessionId,
     setGreetingDone,
   } = useChat();
   const { settings, updateSettings } = useSettings();
-  const { sendMessage, stopGeneration, sendGreeting } = useAgent();
+  const { sendMessage, stopGeneration } = useChatActions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
@@ -37,14 +42,12 @@ export function Chat({ onBack }: ChatProps) {
   const [selectedSkill, setSelectedSkill] = useState(activeSession?.skill || "general");
   const [highlightMsgId, setHighlightMsgId] = useState<string | undefined>();
   const greetingTriggeredFor = useRef<string | null>(null);
-  // Diagram 49: ref to sidebar's search focus function
   const sidebarSearchFocusRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (activeSession?.skill) setSelectedSkill(activeSession.skill);
   }, [activeSession?.skill]);
 
-  // ─── Diagram 41: Auto-greeting on new conversation ────────────────────────
   useEffect(() => {
     if (!activeSession) return;
     if (!settings.autoGreeting) return;
@@ -53,10 +56,9 @@ export function Chat({ onBack }: ChatProps) {
     if (greetingTriggeredFor.current === activeSession.id) return;
     greetingTriggeredFor.current = activeSession.id;
     setGreetingDone(activeSession.id);
-    sendGreeting(activeSession.id);
-  }, [activeSession?.id, activeSession?.greetingDone, activeSession?.messages.length, settings.autoGreeting, setGreetingDone, sendGreeting]);
+    sendMessage("Hello! Please greet me briefly based on your persona.", activeSession.id);
+  }, [activeSession?.id, activeSession?.greetingDone, activeSession?.messages.length, settings.autoGreeting, setGreetingDone, sendMessage]);
 
-  // ─── Diagram 49: Keyboard shortcuts ────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -73,13 +75,10 @@ export function Chat({ onBack }: ChatProps) {
         e.preventDefault();
         setSidebarOpen((p) => !p);
       }
-      // Diagram 49: Ctrl+K → open sidebar + focus search
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
         setSidebarOpen(true);
-        setTimeout(() => {
-          sidebarSearchFocusRef.current?.();
-        }, 320);
+        setTimeout(() => { sidebarSearchFocusRef.current?.(); }, 320);
       }
     };
     window.addEventListener("keydown", handler);
@@ -90,7 +89,6 @@ export function Chat({ onBack }: ChatProps) {
   const messages = activeSession?.messages || [];
   const isStreaming = messages.some((m) => m.isStreaming);
   const totalTokens = activeSession?.totalTokens ?? 0;
-  // Diagram 46: token bar percentage + 80% warning
   const tokenPct = Math.min(100, (totalTokens / CONTEXT_WINDOW_ESTIMATE) * 100);
   const tokenWarning = tokenPct >= 80;
 
@@ -107,33 +105,26 @@ export function Chat({ onBack }: ChatProps) {
     setActiveSession(sessionId);
   }, [settings.selectedModel, settings.selectedPersona, selectedSkill, createSession, setActiveSession]);
 
-  // ─── Diagram 38: Retry — delete last assistant + user, resend ─────────────
   const handleRetry = useCallback(async (lastUserContent: string) => {
     if (!activeSessionId || !activeSession) return;
     const msgs = activeSession.messages;
     const lastAssistIdx = msgs.map((m) => m.role).lastIndexOf("assistant");
     const lastUserIdx = msgs.map((m) => m.role).lastIndexOf("user");
-
     if (lastAssistIdx !== -1) deleteMessage(activeSessionId, msgs[lastAssistIdx].id);
     if (lastUserIdx !== -1) deleteMessage(activeSessionId, msgs[lastUserIdx].id);
-
     await sendMessage(lastUserContent);
   }, [activeSessionId, activeSession, deleteMessage, sendMessage]);
 
-  // ─── Diagram 39: Edit — delete messages after edited, resend ─────────────
   const handleEdit = useCallback(async (msgId: string, newContent: string) => {
     if (!activeSessionId || !activeSession) return;
     const msgs = activeSession.messages;
     const editIdx = msgs.findIndex((m) => m.id === msgId);
     if (editIdx === -1) return;
-
     const toDelete = msgs.slice(editIdx);
     for (const m of toDelete) deleteMessage(activeSessionId, m.id);
-
     await sendMessage(newContent);
   }, [activeSessionId, activeSession, deleteMessage, sendMessage]);
 
-  // ─── Diagram 51: Notifications toggle ────────────────────────────────────
   const handleNotificationToggle = async () => {
     if (!settings.enableNotifications) {
       const ok = await requestNotificationPermission();
@@ -143,7 +134,6 @@ export function Chat({ onBack }: ChatProps) {
     }
   };
 
-  // ─── Diagram 47: Scroll to matched message after search select ────────────
   const handleSelectWithMatch = useCallback((_sessionId: string, messageId?: string) => {
     if (messageId) {
       setHighlightMsgId(messageId);
@@ -157,7 +147,6 @@ export function Chat({ onBack }: ChatProps) {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Header */}
       <div className="flex items-center justify-between px-2.5 py-2 border-b border-[hsl(260_18%_13%)] bg-[hsl(258_30%_7%)]">
         <div className="flex items-center gap-1.5">
           <button
@@ -180,7 +169,6 @@ export function Chat({ onBack }: ChatProps) {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Diagram 46: Token bar with 80% warning */}
           {totalTokens > 0 && (
             <div
               className={cn(
@@ -209,7 +197,6 @@ export function Chat({ onBack }: ChatProps) {
           )}
           <ModelSelector />
           <PersonaSelector />
-          {/* Diagram 51: Notification toggle */}
           <button
             onClick={handleNotificationToggle}
             className="p-1.5 rounded-xl text-[hsl(265_15%_40%)] hover:text-purple-300 hover:bg-[hsl(260_20%_13%)] transition-colors"
@@ -256,8 +243,6 @@ export function Chat({ onBack }: ChatProps) {
           highlightMsgId={highlightMsgId}
         />
       )}
-
-      <ThinkingBox />
 
       <ChatInput
         onSend={handleSend}

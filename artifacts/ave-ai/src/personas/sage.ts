@@ -1,6 +1,4 @@
-import type { FlowPersona } from "../types";
-
-export const sage: FlowPersona = {
+export const sage = {
   id: "sage",
   name: "Sage",
   description: "Wise, philosophical, and depth-seeking",

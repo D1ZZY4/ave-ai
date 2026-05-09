@@ -1,20 +1,5 @@
 import type { Rule } from "./index";
-import { SAFETY_RULE_SET } from "../types";
 
-/**
- * Diagram 7 — safetyRules: SafetyRuleSet (exported sesuai spec)
- */
-export interface SafetyRuleSet {
-  toxicityThreshold: number;
-  detectPII: boolean;
-  detectInjection: boolean;
-}
-
-export const safetyRules: SafetyRuleSet = SAFETY_RULE_SET;
-
-/**
- * LLM prompt rule — injected ke system prompt
- */
 export const safetyRule: Rule = {
   id: "safety",
   tags: ["safety", "always"],
