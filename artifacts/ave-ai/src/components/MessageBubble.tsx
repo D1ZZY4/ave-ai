@@ -195,6 +195,18 @@ export function MessageBubble({
             </div>
           )}
           <div className="px-3.5 py-2.5 rounded-2xl rounded-br-md bg-[hsl(260_22%_15%)] border border-[hsl(260_18%_22%)] text-[hsl(270_20%_90%)] text-[13px] leading-relaxed">
+            {message.images && message.images.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {message.images.map((src, i) => (
+                  <img
+                    key={i}
+                    src={src}
+                    alt={`attachment-${i + 1}`}
+                    className="max-w-[140px] max-h-[140px] rounded-lg object-cover border border-[hsl(260_18%_26%)]"
+                  />
+                ))}
+              </div>
+            )}
             {message.content}
           </div>
         </div>

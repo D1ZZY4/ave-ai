@@ -31,7 +31,7 @@ export function Home({ onChatStarted }: HomeProps) {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState("general");
 
-  const handleSend = async (content: string) => {
+  const handleSend = async (content: string, images?: string[]) => {
     const autoSkill = detectSkill(content);
     const skill = selectedSkill !== "general" ? selectedSkill : autoSkill;
 
@@ -42,7 +42,7 @@ export function Home({ onChatStarted }: HomeProps) {
     );
     setActiveSession(sessionId);
     onChatStarted();
-    await sendMessage(content, sessionId);
+    await sendMessage(content, sessionId, images);
   };
 
   return (

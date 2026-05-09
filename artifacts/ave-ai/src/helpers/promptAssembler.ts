@@ -64,12 +64,15 @@ export function assembleFastPrompt(
     .filter(Boolean)
     .join("\n\n---\n\n");
 
+  const userMsg: OllamaMessage = { role: "user", content: userInput };
+  if (opts.images && opts.images.length > 0) userMsg.images = opts.images;
+
   return {
     systemPrompt,
     ollamaMessages: [
       { role: "system", content: systemPrompt },
       ...chatHistory,
-      { role: "user", content: userInput },
+      userMsg,
     ],
     tools: undefined,
   };
@@ -128,12 +131,15 @@ export function assembleExpertPrompt(
     .filter(Boolean)
     .join("\n\n---\n\n");
 
+  const userMsg: OllamaMessage = { role: "user", content: userInput };
+  if (opts.images && opts.images.length > 0) userMsg.images = opts.images;
+
   return {
     systemPrompt,
     ollamaMessages: [
       { role: "system", content: systemPrompt },
       ...chatHistory,
-      { role: "user", content: userInput },
+      userMsg,
     ],
     tools: toolSchemas.length > 0 ? toolSchemas : undefined,
   };
