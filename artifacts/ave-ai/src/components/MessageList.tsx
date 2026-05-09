@@ -1,15 +1,18 @@
 import { useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
 import type { Message } from "../store/chat";
 import { MessageBubble } from "./MessageBubble";
 
 interface MessageListProps {
   messages: Message[];
-  onSend: (content: string) => void;
+  onSend: (content: string, images?: string[]) => void;
   onRetry?: (lastUserContent: string) => void;
   onEdit?: (msgId: string, newContent: string) => void;
+  /** Diagram 47: Message ID to highlight after search navigation */
+  highlightMsgId?: string;
 }
 
-export function MessageList({ messages, onSend, onRetry, onEdit }: MessageListProps) {
+export function MessageList({ messages, onSend, onRetry, onEdit, highlightMsgId }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastLen = useRef(0);
 
@@ -41,16 +44,24 @@ export function MessageList({ messages, onSend, onRetry, onEdit }: MessageListPr
     <div className="flex-1 overflow-y-auto px-3.5 py-3 scrollbar-hide">
       <div className="max-w-xl mx-auto">
         {messages.map((msg) => (
-          <MessageBubble
+          <div
             key={msg.id}
-            message={msg}
-            onSend={onSend}
-            isLastMessage={msg.id === lastMsgId}
-            isLastUserMessage={msg.id === lastUserMsg?.id}
-            globalStreaming={isAnyStreaming}
-            onRetry={msg.id === lastAssistantMsg?.id ? handleRetry : undefined}
-            onEdit={onEdit ? (content) => onEdit(msg.id, content) : undefined}
-          />
+            id={`msg-${msg.id}`}
+            className={cn(
+              "transition-all duration-500",
+              highlightMsgId === msg.id && "ring-1 ring-purple-500/50 rounded-2xl bg-purple-900/10"
+            )}
+          >
+            <MessageBubble
+              message={msg}
+              onSend={onSend}
+              isLastMessage={msg.id === lastMsgId}
+              isLastUserMessage={msg.id === lastUserMsg?.id}
+              globalStreaming={isAnyStreaming}
+              onRetry={msg.id === lastAssistantMsg?.id ? handleRetry : undefined}
+              onEdit={onEdit ? (content) => onEdit(msg.id, content) : undefined}
+            />
+          </div>
         ))}
         <div ref={bottomRef} />
       </div>

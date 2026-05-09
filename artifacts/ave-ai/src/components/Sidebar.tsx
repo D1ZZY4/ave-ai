@@ -5,7 +5,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useChat } from "../store/chat";
 import { useSettings } from "../store/settings";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { exportToMarkdown, exportToJSON } from "../helpers/exportConversation";
 
 interface SidebarProps {
@@ -15,23 +15,54 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onOpenSkills: () => void;
   onOpenTools: () => void;
+  /** Diagram 49: Ctrl+K — parent registers focus fn */
+  onRegisterSearchFocus?: (fn: () => void) => void;
+  /** Diagram 47: When a filtered session is clicked, also return matched messageId */
+  onSelectWithMatch?: (sessionId: string, messageId?: string) => void;
 }
 
-export function Sidebar({ isOpen, onClose, onNewChat, onOpenSettings, onOpenSkills, onOpenTools }: SidebarProps) {
+export function Sidebar({
+  isOpen, onClose, onNewChat, onOpenSettings, onOpenSkills, onOpenTools,
+  onRegisterSearchFocus, onSelectWithMatch,
+}: SidebarProps) {
   const { sessions, activeSessionId, setActiveSession, deleteSession } = useChat();
   const { settings } = useSettings();
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportMenu, setExportMenu] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Diagram 49: Register focus handler with parent
+  useEffect(() => {
+    if (!onRegisterSearchFocus) return;
+    onRegisterSearchFocus(() => {
+      searchInputRef.current?.focus();
+    });
+  }, [onRegisterSearchFocus]);
+
+  // Diagram 47: When searching, record which message matched per session
   const filteredSessions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return sessions.slice(0, 30);
-    return sessions.filter((s) =>
-      s.title.toLowerCase().includes(q) ||
-      s.messages.some((m) => m.content.toLowerCase().includes(q))
-    ).slice(0, 30);
+    if (!q) return sessions.slice(0, 30).map((s) => ({ session: s, matchedMsgId: undefined as string | undefined }));
+    return sessions
+      .filter((s) =>
+        s.title.toLowerCase().includes(q) ||
+        s.messages.some((m) => m.content.toLowerCase().includes(q))
+      )
+      .slice(0, 30)
+      .map((s) => {
+        const matchedMsg = s.messages.find((m) => m.content.toLowerCase().includes(q));
+        return { session: s, matchedMsgId: matchedMsg?.id };
+      });
   }, [sessions, searchQuery]);
+
+  const handleSelectSession = (sessionId: string, matchedMsgId?: string) => {
+    setActiveSession(sessionId);
+    if (onSelectWithMatch) {
+      onSelectWithMatch(sessionId, matchedMsgId);
+    }
+    onClose();
+  };
 
   return (
     <>
@@ -70,14 +101,15 @@ export function Sidebar({ isOpen, onClose, onNewChat, onOpenSettings, onOpenSkil
           </button>
         </div>
 
-        {/* Search */}
+        {/* Search — Diagram 47 + Diagram 49 */}
         <div className="px-3 pb-2">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[hsl(258_25%_8%)] border border-[hsl(260_18%_15%)]">
             <Search size={12} className="text-[hsl(265_15%_38%)] flex-shrink-0" />
             <input
+              ref={searchInputRef}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search chats..."
+              placeholder="Search chats… (Ctrl+K)"
               className="flex-1 bg-transparent text-[11px] text-[hsl(270_20%_82%)] placeholder:text-[hsl(265_15%_32%)] outline-none"
             />
             {searchQuery && (
@@ -117,18 +149,31 @@ export function Sidebar({ isOpen, onClose, onNewChat, onOpenSettings, onOpenSkil
                 {searchQuery ? `Results (${filteredSessions.length})` : "Recent"}
               </div>
               <div className="space-y-0.5">
-                {filteredSessions.map((session) => (
+                {filteredSessions.map(({ session, matchedMsgId }) => (
                   <div key={session.id} className="relative group">
                     <button
-                      onClick={() => { setActiveSession(session.id); onClose(); }}
+                      onClick={() => handleSelectSession(session.id, matchedMsgId)}
                       className={cn(
-                        "w-full text-left px-3 py-2 rounded-xl text-[12px] transition-colors pr-7 truncate",
+                        "w-full text-left px-3 py-2 rounded-xl text-[12px] transition-colors pr-7",
                         session.id === activeSessionId
                           ? "bg-[hsl(260_20%_13%)] text-[hsl(270_20%_90%)]"
                           : "text-[hsl(270_12%_60%)] hover:bg-[hsl(260_20%_11%)] hover:text-[hsl(270_20%_80%)]"
                       )}
                     >
-                      {session.title}
+                      <div className="truncate">{session.title}</div>
+                      {/* Diagram 47: Show matched message snippet */}
+                      {matchedMsgId && searchQuery && (() => {
+                        const msg = session.messages.find((m) => m.id === matchedMsgId);
+                        if (!msg) return null;
+                        const q = searchQuery.toLowerCase();
+                        const idx = msg.content.toLowerCase().indexOf(q);
+                        const snippet = msg.content.slice(Math.max(0, idx - 20), idx + 40);
+                        return (
+                          <div className="text-[9px] text-[hsl(265_15%_38%)] mt-0.5 truncate">
+                            …{snippet}…
+                          </div>
+                        );
+                      })()}
                       {session.totalTokens != null && session.totalTokens > 0 && (
                         <span className="ml-1.5 text-[9px] text-[hsl(265_15%_32%)]">
                           {(session.totalTokens / 1000).toFixed(1)}k

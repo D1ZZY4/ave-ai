@@ -32,6 +32,8 @@ export interface Message {
   timestamp: number;
   model?: string;
   tokenCount?: number;
+  /** Diagram 45: base64 images attached by user */
+  images?: string[];
 }
 
 export interface ChatSession {

@@ -47,11 +47,17 @@ export function assembleFastPrompt(
 
   const personaPrompt = opts.systemPromptOverride ?? persona.systemPrompt;
 
+  // Diagram 40: Qwen3 auto-detect → add special reasoning instruction
+  const qwen3Block = opts.model?.toLowerCase().includes("qwen")
+    ? `[MODEL-SPECIFIC: QWEN3]\nYou are a thinking-capable model. Before your final answer, reason step by step. You may use Thought/Action/Observation format if needed.`
+    : "";
+
   const systemPrompt = [
     `[PERSONA: ${persona.name.toUpperCase()}]\n${personaPrompt}`,
     `[SKILL: ${skill.name.toUpperCase()}]\n${skill.systemPrompt}`,
     `[RULES]\n${rulesPrompt}`,
     safetyBlock,
+    qwen3Block,
     FAST_SYSTEM_ADDENDUM,
     memoryBlock ? `[MEMORY]\n${memoryBlock}` : "",
   ]
@@ -102,11 +108,17 @@ export function assembleExpertPrompt(
 
   const personaPrompt = opts.systemPromptOverride ?? persona.systemPrompt;
 
+  // Diagram 40: Qwen3 auto-detect → add special reasoning instruction
+  const qwen3Block = opts.model?.toLowerCase().includes("qwen")
+    ? `[MODEL-SPECIFIC: QWEN3]\nYou are a thinking-capable model. Use Thought/Action/Observation format for every step. Reason explicitly before choosing an action.`
+    : "";
+
   const systemPrompt = [
     `[PERSONA: ${persona.name.toUpperCase()}]\n${personaPrompt}`,
     `[SKILL: ${skill.name.toUpperCase()}]\n${skill.systemPrompt}`,
     `[RULES]\n${rulesPrompt}`,
     safetyBlock,
+    qwen3Block,
     expertAddendum,
     toolList ? `[AVAILABLE TOOLS]\n${toolList}` : "",
     EXPERT_SYSTEM_ADDENDUM,

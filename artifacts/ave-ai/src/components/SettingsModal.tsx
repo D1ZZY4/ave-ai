@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { X, Save, RotateCcw, Plus, Trash2, CheckCircle, XCircle, Loader, Bell } from "lucide-react";
+import { X, Save, RotateCcw, Plus, Trash2, CheckCircle, XCircle, Loader, Bell, Sun, Moon, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSettings } from "../store/settings";
+import { useSettings, type AppTheme } from "../store/settings";
 import { useModels } from "../hooks/useModels";
 import { Switch } from "@/components/ui/switch";
 import { ALL_PERSONAS } from "../personas";
@@ -38,6 +38,12 @@ function ToggleRow({
 }
 
 type Tab = "connection" | "display" | "capabilities" | "personas";
+
+const THEMES: { id: AppTheme; label: string; icon: React.ReactNode }[] = [
+  { id: "light", label: "Light", icon: <Sun size={13} /> },
+  { id: "system", label: "System", icon: <Monitor size={13} /> },
+  { id: "dark", label: "Dark", icon: <Moon size={13} /> },
+];
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { settings, updateSettings } = useSettings();
@@ -327,6 +333,30 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* ── DISPLAY TAB ── */}
           {activeTab === "display" && (
             <div className="divide-y divide-[hsl(260_18%_13%)]">
+
+              {/* Diagram 50: Theme selector */}
+              <div className="py-2.5">
+                <div className="text-[12px] font-medium text-[hsl(270_20%_85%)] mb-1">Theme</div>
+                <div className="text-[10px] text-[hsl(265_15%_40%)] mb-2">Choose dark, light, or follow system preference</div>
+                <div className="flex gap-1.5">
+                  {THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => updateSettings({ theme: t.id })}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border text-[11px] font-medium transition-all",
+                        settings.theme === t.id
+                          ? "border-purple-600 bg-[hsl(270_60%_18%/0.5)] text-purple-300"
+                          : "border-[hsl(260_18%_18%)] text-[hsl(265_15%_45%)] hover:border-[hsl(260_18%_26%)] hover:text-white"
+                      )}
+                    >
+                      {t.icon}
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <ToggleRow
                 label="Show process log"
                 description="Skill, persona, rules, and mode info shown with each response"

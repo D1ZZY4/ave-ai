@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import {
   Send, Square, Plus, Brain, Globe, Zap, ChevronDown,
-  Sparkles, Code2, List, FileText,
+  Sparkles, Code2, List, Mic, MicOff, ImagePlus, X as XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettings } from "../store/settings";
@@ -15,7 +15,7 @@ const SKILL_ICONS: Record<string, React.ReactNode> = {
 };
 
 interface ChatInputProps {
-  onSend: (content: string) => void;
+  onSend: (content: string, images?: string[]) => void;
   onStop?: () => void;
   isStreaming?: boolean;
   selectedSkill: string;
@@ -30,15 +30,21 @@ export function ChatInput({
   const { settings, updateSettings } = useSettings();
   const [value, setValue] = useState("");
   const [showSkills, setShowSkills] = useState(false);
+  const [attachedImages, setAttachedImages] = useState<string[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
 
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
-    if (!trimmed || isStreaming) return;
-    onSend(trimmed);
+    if ((!trimmed && attachedImages.length === 0) || isStreaming) return;
+    onSend(trimmed || "[Image]", attachedImages.length > 0 ? attachedImages : undefined);
     setValue("");
+    setAttachedImages([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-  }, [value, isStreaming, onSend]);
+  }, [value, attachedImages, isStreaming, onSend]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -56,11 +62,92 @@ export function ChatInput({
     }
   };
 
+  // ─── Diagram 45: Voice input via SpeechRecognition ──────────────────────
+  const handleVoiceToggle = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition;
+
+    if (!SpeechRecognitionAPI) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    if (isRecording && recognitionRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (recognitionRef.current as any).stop();
+      setIsRecording(false);
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recognition: any = new SpeechRecognitionAPI();
+    recognition.lang = "id-ID,en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognitionRef.current = recognition;
+
+    recognition.onresult = (event: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => {
+      const transcript = event.results[0][0].transcript;
+      setValue((prev) => prev ? prev + " " + transcript : transcript);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const el = textareaRef.current;
+        el.style.height = "auto";
+        el.style.height = Math.min(el.scrollHeight, 140) + "px";
+      }
+    };
+
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+
+    recognition.start();
+    setIsRecording(true);
+  }, [isRecording]);
+
+  // ─── Diagram 45: Image input via file picker ────────────────────────────
+  const handleImagePick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+
+    const toBase64 = (file: File): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+    const bases = await Promise.all(files.map(toBase64));
+    setAttachedImages((prev) => [...prev, ...bases].slice(0, 3));
+    e.target.value = "";
+  };
+
+  const removeImage = (idx: number) =>
+    setAttachedImages((prev) => prev.filter((_, i) => i !== idx));
+
   const currentSkill = ALL_SKILLS.find((s) => s.id === selectedSkill) || ALL_SKILLS[0];
-  const canSend = value.trim().length > 0 && !isStreaming;
+  const canSend = (value.trim().length > 0 || attachedImages.length > 0) && !isStreaming;
 
   return (
     <div className="relative px-3 pb-3 pt-1.5">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       {/* Skills dropdown */}
       {showSkills && (
         <div className="absolute bottom-full left-4 mb-1.5 w-44 rounded-2xl border border-[hsl(260_18%_18%)] bg-[hsl(258_28%_9%)] shadow-xl overflow-hidden z-50 slide-up">
@@ -118,6 +205,27 @@ export function ChatInput({
           </button>
         </div>
 
+        {/* Image previews (D45) */}
+        {attachedImages.length > 0 && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 flex-wrap">
+            {attachedImages.map((b64, idx) => (
+              <div key={idx} className="relative group">
+                <img
+                  src={`data:image/png;base64,${b64}`}
+                  alt="attachment"
+                  className="w-12 h-12 rounded-lg object-cover border border-[hsl(260_18%_22%)]"
+                />
+                <button
+                  onClick={() => removeImage(idx)}
+                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <XIcon size={9} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Textarea */}
         <textarea
           ref={textareaRef}
@@ -132,9 +240,27 @@ export function ChatInput({
 
         {/* Bottom row */}
         <div className="flex items-center justify-between px-3 pb-2 pt-0.5">
-          <div className="flex items-center gap-1.5">
-            <button className="p-1 rounded-lg text-[hsl(265_15%_40%)] hover:text-purple-300 transition-colors">
-              <Plus size={15} />
+          <div className="flex items-center gap-1">
+            {/* Image picker (D45) */}
+            <button
+              onClick={handleImagePick}
+              className="p-1.5 rounded-lg text-[hsl(265_15%_40%)] hover:text-purple-300 transition-colors"
+              title="Attach image"
+            >
+              <ImagePlus size={14} />
+            </button>
+            {/* Voice input (D45) */}
+            <button
+              onClick={handleVoiceToggle}
+              className={cn(
+                "p-1.5 rounded-lg transition-colors",
+                isRecording
+                  ? "text-red-400 bg-red-900/20 animate-pulse"
+                  : "text-[hsl(265_15%_40%)] hover:text-purple-300"
+              )}
+              title={isRecording ? "Stop recording" : "Voice input"}
+            >
+              {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
             </button>
             <button
               onClick={() => setShowSkills((p) => !p)}

@@ -71,7 +71,7 @@ export function useAgent() {
   }, []);
 
   const sendMessage = useCallback(
-    async (userContent: string, sessionId?: string) => {
+    async (userContent: string, sessionId?: string, images?: string[]) => {
       if (!navigator.onLine) {
         const sid = sessionId || activeSessionId || "";
         offlineQueue.enqueue(userContent, sid);
@@ -97,7 +97,11 @@ export function useAgent() {
       abortRef.current = ctrl;
       sessionStore.startAbortController();
 
-      addMessage(currentSessionId, { role: "user", content: userContent });
+      addMessage(currentSessionId, {
+        role: "user",
+        content: userContent,
+        images,
+      });
 
       const initSteps: ProcessStep[] = [
         {
@@ -124,9 +128,14 @@ export function useAgent() {
         model: settings.selectedModel,
       });
 
+      // Build chat history — include images in the last user message if provided
       const chatHistory: OllamaMessage[] = allMessages
         .filter((m) => !m.isStreaming)
-        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+        .map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          images: m.images,
+        }));
 
       const opts = {
         mode,
@@ -139,6 +148,7 @@ export function useAgent() {
         signal: ctrl.signal,
         systemPromptOverride: (settings.systemPromptOverrides ?? {})[settings.selectedPersona] || undefined,
         numPredict: settings.maxOutputTokens,
+        images,
       };
 
       sessionStore.setSessionActive(currentSessionId, mode, settings.selectedPersona);

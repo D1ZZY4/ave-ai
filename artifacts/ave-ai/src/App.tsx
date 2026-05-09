@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { SettingsProvider } from "./store/settings";
+import { SettingsProvider, useSettings } from "./store/settings";
 import { ChatProvider, useChat } from "./store/chat";
 import { Home } from "./pages/Home";
 import { Chat } from "./pages/Chat";
+import { useTheme } from "./hooks/useTheme";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -11,7 +12,11 @@ const queryClient = new QueryClient({
 
 function AppRouter() {
   const [view, setView] = useState<"home" | "chat">("home");
-  const { activeSessionId, setActiveSession } = useChat();
+  const { activeSessionId } = useChat();
+  const { settings } = useSettings();
+
+  // Diagram 50: Apply theme class to document root
+  useTheme(settings.theme);
 
   const handleChatStarted = () => setView("chat");
   const handleBack = () => setView("home");

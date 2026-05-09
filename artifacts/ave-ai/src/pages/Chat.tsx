@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, Bell, BellOff, Coins } from "lucide-react";
+import { Plus, Bell, BellOff, Coins, AlertTriangle } from "lucide-react";
 import { useChat } from "../store/chat";
 import { useSettings } from "../store/settings";
 import { useAgent } from "../hooks/useAgent";
@@ -13,6 +13,10 @@ import { ModelSelector } from "../components/ModelSelector";
 import { PersonaSelector } from "../components/PersonaSelector";
 import { ThinkingBox } from "../components/ThinkingBox";
 import { requestNotificationPermission } from "../helpers/notifications";
+import { cn } from "@/lib/utils";
+
+// Diagram 46: Approximate context window for warning calculation
+const CONTEXT_WINDOW_ESTIMATE = 32768;
 
 interface ChatProps {
   onBack: () => void;
@@ -31,7 +35,10 @@ export function Chat({ onBack }: ChatProps) {
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState(activeSession?.skill || "general");
+  const [highlightMsgId, setHighlightMsgId] = useState<string | undefined>();
   const greetingTriggeredFor = useRef<string | null>(null);
+  // Diagram 49: ref to sidebar's search focus function
+  const sidebarSearchFocusRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (activeSession?.skill) setSelectedSkill(activeSession.skill);
@@ -66,6 +73,14 @@ export function Chat({ onBack }: ChatProps) {
         e.preventDefault();
         setSidebarOpen((p) => !p);
       }
+      // Diagram 49: Ctrl+K → open sidebar + focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setSidebarOpen(true);
+        setTimeout(() => {
+          sidebarSearchFocusRef.current?.();
+        }, 320);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -75,9 +90,12 @@ export function Chat({ onBack }: ChatProps) {
   const messages = activeSession?.messages || [];
   const isStreaming = messages.some((m) => m.isStreaming);
   const totalTokens = activeSession?.totalTokens ?? 0;
+  // Diagram 46: token bar percentage + 80% warning
+  const tokenPct = Math.min(100, (totalTokens / CONTEXT_WINDOW_ESTIMATE) * 100);
+  const tokenWarning = tokenPct >= 80;
 
-  const handleSend = async (content: string) => {
-    await sendMessage(content);
+  const handleSend = async (content: string, images?: string[]) => {
+    await sendMessage(content, undefined, images);
   };
 
   const handleNewChat = useCallback(() => {
@@ -125,6 +143,18 @@ export function Chat({ onBack }: ChatProps) {
     }
   };
 
+  // ─── Diagram 47: Scroll to matched message after search select ────────────
+  const handleSelectWithMatch = useCallback((_sessionId: string, messageId?: string) => {
+    if (messageId) {
+      setHighlightMsgId(messageId);
+      setTimeout(() => {
+        const el = document.getElementById(`msg-${messageId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => setHighlightMsgId(undefined), 2500);
+      }, 100);
+    }
+  }, []);
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -150,11 +180,31 @@ export function Chat({ onBack }: ChatProps) {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Diagram 46: Token usage display */}
+          {/* Diagram 46: Token bar with 80% warning */}
           {totalTokens > 0 && (
-            <div className="flex items-center gap-0.5 text-[9px] text-[hsl(265_15%_32%)] px-1.5 py-0.5 rounded-lg bg-[hsl(260_18%_10%)] border border-[hsl(260_18%_15%)]">
-              <Coins size={9} />
-              <span>{(totalTokens / 1000).toFixed(1)}k</span>
+            <div
+              className={cn(
+                "flex items-center gap-1 px-1.5 py-0.5 rounded-lg border text-[9px]",
+                tokenWarning
+                  ? "border-orange-700/60 bg-orange-950/30 text-orange-400"
+                  : "border-[hsl(260_18%_15%)] bg-[hsl(260_18%_10%)] text-[hsl(265_15%_32%)]"
+              )}
+              title={`${totalTokens.toLocaleString()} tokens (~${tokenPct.toFixed(0)}% of ${(CONTEXT_WINDOW_ESTIMATE / 1024).toFixed(0)}k context)`}
+            >
+              {tokenWarning && <AlertTriangle size={9} className="flex-shrink-0" />}
+              <Coins size={9} className="flex-shrink-0" />
+              <div className="flex items-center gap-1">
+                <span>{(totalTokens / 1000).toFixed(1)}k</span>
+                <div className="w-12 h-1 rounded-full bg-[hsl(260_18%_18%)] overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      tokenWarning ? "bg-orange-500" : "bg-purple-600"
+                    )}
+                    style={{ width: `${tokenPct}%` }}
+                  />
+                </div>
+              </div>
             </div>
           )}
           <ModelSelector />
@@ -184,6 +234,8 @@ export function Chat({ onBack }: ChatProps) {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenSkills={() => setSkillsOpen(true)}
         onOpenTools={() => setToolsOpen(true)}
+        onRegisterSearchFocus={(fn) => { sidebarSearchFocusRef.current = fn; }}
+        onSelectWithMatch={handleSelectWithMatch}
       />
 
       {messages.length === 0 ? (
@@ -201,6 +253,7 @@ export function Chat({ onBack }: ChatProps) {
           onSend={handleSend}
           onRetry={handleRetry}
           onEdit={handleEdit}
+          highlightMsgId={highlightMsgId}
         />
       )}
 
@@ -212,7 +265,7 @@ export function Chat({ onBack }: ChatProps) {
         isStreaming={isStreaming}
         selectedSkill={selectedSkill}
         onSkillChange={setSelectedSkill}
-        placeholder="Message Ave AI... (Enter to send, Shift+Enter for newline)"
+        placeholder="Message Ave AI… (Enter, Shift+Enter for newline, Ctrl+K to search)"
       />
 
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />

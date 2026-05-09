@@ -214,6 +214,8 @@ export interface OrchestratorOptions {
   systemPromptOverride?: string;
   numPredict?: number;
   isGreeting?: boolean;
+  /** Diagram 45: base64 images to include in the user turn */
+  images?: string[];
 }
 
 export interface OrchestratorResult {

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 
 export type ChatMode = "fast" | "expert";
+export type AppTheme = "dark" | "light" | "system";
 
 interface Settings {
   baseUrl: string;
@@ -17,6 +18,7 @@ interface Settings {
   maxOutputTokens: number;
   systemPromptOverrides: Record<string, string>;
   autoGreeting: boolean;
+  theme: AppTheme;
 }
 
 interface SettingsContextValue {
@@ -39,6 +41,7 @@ const DEFAULT_SETTINGS: Settings = {
   maxOutputTokens: 2048,
   systemPromptOverrides: {},
   autoGreeting: true,
+  theme: "system",
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
