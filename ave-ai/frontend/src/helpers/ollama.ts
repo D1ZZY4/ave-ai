@@ -30,6 +30,13 @@ export interface OllamaToolCall {
   };
 }
 
+export interface OllamaToolProperty {
+  type: string;
+  description: string;
+  enum?: string[];
+  items?: { type: string };
+}
+
 export interface OllamaTool {
   type: "function";
   function: {
@@ -37,7 +44,7 @@ export interface OllamaTool {
     description: string;
     parameters: {
       type: string;
-      properties: Record<string, { type: string; description: string }>;
+      properties: Record<string, OllamaToolProperty>;
       required?: string[];
     };
   };
