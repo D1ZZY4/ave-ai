@@ -236,51 +236,45 @@ export function useChatActions() {
         const MAX_TOOL_CALLS = 5;
 
         for await (const chunk of gen) {
-          // ── Diagram 14, 17: Tool call handling ─────────────────────────
+          // ── flow-16 diagrams 1-3: Parallel tool execution ──────────────
           if (chunk.message?.tool_calls?.length && toolCallCount < MAX_TOOL_CALLS) {
-            for (const tc of chunk.message.tool_calls) {
-              toolCallCount++;
+            const remaining = MAX_TOOL_CALLS - toolCallCount;
+            const callsToRun = chunk.message.tool_calls.slice(0, remaining);
+            toolCallCount += callsToRun.length;
 
-              const toolStep: ProcessStep = {
-                id: uuidv4(),
-                type: "tool-call",
-                label: `Tool → ${tc.function.name}`,
-                content: `args: ${JSON.stringify(tc.function.arguments)}`,
-                status: "active",
-              };
-              patchSteps([...currentSteps, toolStep]);
+            // Register all tool steps as active immediately
+            const toolSteps: ProcessStep[] = callsToRun.map((tc) => ({
+              id: uuidv4(),
+              type: "tool-call" as const,
+              label: `Tool → ${tc.function.name}`,
+              content: `args: ${JSON.stringify(tc.function.arguments)}`,
+              status: "active" as const,
+            }));
+            patchSteps([...currentSteps, ...toolSteps]);
 
-              // Diagram 17: Validate tool parameters via RulesEngine
-              const toolValidation = engine.validateToolCall(
-                tc.function.name,
-                tc.function.arguments || {}
-              );
-
-              if (toolValidation.decision === "Deny") {
-                patchSteps(
-                  currentSteps.map((s) =>
-                    s.id === toolStep.id
-                      ? { ...s, content: `Blocked: ${toolValidation.reason}`, status: "done" }
-                      : s
-                  )
+            // Execute all independent tool calls concurrently (flow-16 #2)
+            const toolResults = await Promise.all(
+              callsToRun.map(async (tc, i) => {
+                const stepId = toolSteps[i].id;
+                const validation = engine.validateToolCall(
+                  tc.function.name,
+                  tc.function.arguments || {}
                 );
-                continue;
-              }
+                if (validation.decision === "Deny") {
+                  return { stepId, content: `Blocked: ${validation.reason}` };
+                }
+                const result = await executeTool(tc.function.name, tc.function.arguments || {});
+                return { stepId, content: result.slice(0, 120) };
+              })
+            );
 
-              // Diagram 10, 26, 27: Execute tool with retry, cache, rate limit
-              const result = await executeTool(
-                tc.function.name,
-                tc.function.arguments || {}
-              );
-
-              patchSteps(
-                currentSteps.map((s) =>
-                  s.id === toolStep.id
-                    ? { ...s, content: result.slice(0, 120), status: "done" }
-                    : s
-                )
-              );
-            }
+            // Mark all tool steps done with their results
+            patchSteps(
+              currentSteps.map((s) => {
+                const r = toolResults.find((r) => r.stepId === s.id);
+                return r ? { ...s, content: r.content, status: "done" as const } : s;
+              })
+            );
             continue;
           }
 

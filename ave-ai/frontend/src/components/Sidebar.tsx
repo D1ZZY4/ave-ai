@@ -1,6 +1,6 @@
 import {
   Plus, History, Wrench, Sparkles, Settings,
-  Trash2, MoreHorizontal, X, Search, Download, BarChart2,
+  Trash2, MoreHorizontal, X, Search, Download, BarChart2, Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat, type ChatSession } from "../store/chat";
@@ -40,13 +40,14 @@ interface SidebarProps {
   onOpenTools: () => void;
   onOpenHistory?: () => void;
   onOpenStatistics?: () => void;
+  onOpenWeb?: () => void;
   onRegisterSearchFocus?: (fn: () => void) => void;
   onSelectWithMatch?: (sessionId: string, messageId?: string) => void;
 }
 
 export function Sidebar({
   isOpen, onClose, onNewChat, onOpenSettings, onOpenSkills, onOpenTools,
-  onOpenHistory, onOpenStatistics,
+  onOpenHistory, onOpenStatistics, onOpenWeb,
   onRegisterSearchFocus, onSelectWithMatch,
 }: SidebarProps) {
   const { sessions, activeSessionId, setActiveSession, deleteSession } = useChat();
@@ -86,6 +87,7 @@ export function Sidebar({
     { icon: <History size={14} />, label: "History", onClick: () => { onOpenHistory?.(); onClose(); } },
     { icon: <Sparkles size={14} />, label: "Skills", onClick: () => { onOpenSkills(); onClose(); } },
     { icon: <Wrench size={14} />, label: "Tools", onClick: () => { onOpenTools(); onClose(); } },
+    { icon: <Globe size={14} />, label: "Web Tools", onClick: () => { onOpenWeb?.(); onClose(); } },
     ...(onOpenStatistics
       ? [{ icon: <BarChart2 size={14} />, label: "Statistics", onClick: () => { onOpenStatistics(); onClose(); } }]
       : []),

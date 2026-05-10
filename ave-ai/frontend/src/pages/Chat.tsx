@@ -18,6 +18,7 @@ import { ModelSelector } from "../components/ModelSelector";
 import { PersonaSelector } from "../components/PersonaSelector";
 import { HistoryModal } from "../components/history/HistoryModal";
 import { StatisticsModal } from "../components/statistics/StatisticsModal";
+import { WebModal } from "../components/web/WebModal";
 import { getLastHealthStatus } from "../helpers/healthCheck";
 import { cn } from "@/lib/utils";
 
@@ -67,6 +68,7 @@ export function Chat({ onBack }: ChatProps) {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [statisticsOpen, setStatisticsOpen] = useState(false);
+  const [webOpen, setWebOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState(activeSession?.skill || "general");
   const [highlightMsgId, setHighlightMsgId] = useState<string | undefined>();
   const [healthStatus, setHealthStatus] = useState(getLastHealthStatus());
@@ -303,6 +305,7 @@ export function Chat({ onBack }: ChatProps) {
         onOpenTools={() => setToolsOpen(true)}
         onOpenHistory={() => setHistoryOpen(true)}
         onOpenStatistics={() => setStatisticsOpen(true)}
+        onOpenWeb={() => setWebOpen(true)}
         onRegisterSearchFocus={(fn) => { sidebarSearchFocusRef.current = fn; }}
         onSelectWithMatch={handleSelectWithMatch}
       />
@@ -353,6 +356,7 @@ export function Chat({ onBack }: ChatProps) {
         isOpen={statisticsOpen}
         onClose={() => setStatisticsOpen(false)}
       />
+      <WebModal isOpen={webOpen} onClose={() => setWebOpen(false)} />
     </div>
   );
 }

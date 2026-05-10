@@ -10,6 +10,7 @@ import { Copy, Check, RotateCcw, Edit2, Coins, ThumbsUp, ThumbsDown } from "luci
 import { useState } from "react";
 import type { Message } from "../store/chat";
 import { useChat } from "../store/chat";
+import { adjustMemoryOnFeedback } from "../helpers/feedbackAnalyzer";
 import { ActivityLog } from "./ActivityLog";
 import { ChoiceCards } from "./ChoiceCards";
 import { QuestionForm } from "./QuestionForm";
@@ -163,6 +164,7 @@ function FeedbackRow({
       personaUsed: activeSession?.persona,
       modeUsed: activeSession?.mode,
     });
+    adjustMemoryOnFeedback("positive");
   };
 
   const handleNegativeWithReason = (reason: string) => {
@@ -176,6 +178,7 @@ function FeedbackRow({
       personaUsed: activeSession?.persona,
       modeUsed: activeSession?.mode,
     });
+    adjustMemoryOnFeedback("negative");
   };
 
   return (
