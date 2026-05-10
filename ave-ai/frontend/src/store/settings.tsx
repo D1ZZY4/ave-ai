@@ -20,6 +20,7 @@ interface Settings {
   autoGreeting: boolean;
   theme: AppTheme;
   enableWebSearch: boolean;
+  memoryEnabled: boolean;
 }
 
 interface SettingsContextValue {
@@ -30,7 +31,7 @@ interface SettingsContextValue {
 const DEFAULT_SETTINGS: Settings = {
   baseUrl: "http://localhost:11434",
   selectedModel: "",
-  selectedPersona: "ave-prime",
+  selectedPersona: "default",
   chatMode: "fast",
   enableThinking: false,
   enableTools: true,
@@ -44,6 +45,7 @@ const DEFAULT_SETTINGS: Settings = {
   autoGreeting: true,
   theme: "system",
   enableWebSearch: false,
+  memoryEnabled: true,
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);

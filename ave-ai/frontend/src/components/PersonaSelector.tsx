@@ -5,23 +5,23 @@ import { useSettings } from "../store/settings";
 import { ALL_PERSONAS } from "../../../agents/personas/index";
 
 const PERSONA_ICONS: Record<string, React.ReactNode> = {
-  "ave-prime": <Bot size={14} />,
-  muse: <Sparkles size={14} />,
-  architect: <Terminal size={14} />,
-  diplomat: <Shield size={14} />,
-  sage: <Eye size={14} />,
-  maverick: <Flame size={14} />,
-  mentor: <GraduationCap size={14} />,
+  default: <Bot size={14} />,
+  creative: <Sparkles size={14} />,
+  developer: <Terminal size={14} />,
+  casual: <Shield size={14} />,
+  wise: <Eye size={14} />,
+  adaptive: <Flame size={14} />,
+  planner: <GraduationCap size={14} />,
 };
 
 const PERSONA_ACCENT: Record<string, string> = {
-  "ave-prime": "bg-purple-600",
-  muse: "bg-pink-600",
-  architect: "bg-blue-600",
-  diplomat: "bg-teal-600",
-  sage: "bg-amber-600",
-  maverick: "bg-orange-600",
-  mentor: "bg-green-600",
+  default: "bg-purple-600",
+  creative: "bg-pink-600",
+  developer: "bg-blue-600",
+  casual: "bg-teal-600",
+  wise: "bg-amber-600",
+  adaptive: "bg-orange-600",
+  planner: "bg-green-600",
 };
 
 export function PersonaSelector() {

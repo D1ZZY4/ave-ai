@@ -17,6 +17,7 @@ import { estimateTokens, shouldCompress, compressionTargetTokens } from "../help
 import { compressHistory } from "../helpers/compression";
 import { checkOllamaHealth, setHealthStatus } from "../helpers/healthCheck";
 import { sanitizeInput } from "../helpers/sanitizer";
+import { loadFacts, formatFactsForPrompt, extractFacts, saveFact } from "../../../agents/memory/index";
 
 function step(
   type: ProcessStep["type"],

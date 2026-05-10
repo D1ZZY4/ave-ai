@@ -1,10 +1,10 @@
-import { avePrime } from "./default";
-import { muse } from "./creative";
-import { architect } from "./developer";
-import { diplomat } from "./casual";
-import { sage } from "./wise";
-import { maverick } from "./adaptive";
-import { mentor } from "./planner";
+import { defaultPersona } from "./default";
+import { creative } from "./creative";
+import { developer } from "./developer";
+import { casual } from "./casual";
+import { wise } from "./wise";
+import { adaptive } from "./adaptive";
+import { planner } from "./planner";
 
 export interface Persona {
   id: string;
@@ -19,19 +19,19 @@ export interface Persona {
 }
 
 export const ALL_PERSONAS: Persona[] = [
-  avePrime,
-  muse,
-  architect,
-  diplomat,
-  sage,
-  maverick,
-  mentor,
+  defaultPersona,
+  creative,
+  developer,
+  casual,
+  wise,
+  adaptive,
+  planner,
 ];
 
 export function getPersona(id: string): Persona {
-  return ALL_PERSONAS.find((p) => p.id === id) ?? avePrime;
+  return ALL_PERSONAS.find((p) => p.id === id) ?? defaultPersona;
 }
 
 export {
-  avePrime, muse, architect, diplomat, sage, maverick, mentor,
+  defaultPersona, creative, developer, casual, wise, adaptive, planner,
 };
