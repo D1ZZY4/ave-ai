@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettings } from "../store/settings";
-import { ALL_SKILLS } from "../skills/index";
+import { ALL_SKILLS } from "../../../agents/skills/index";
 
 const SKILL_ICONS: Record<string, React.ReactNode> = {
   general: <Zap size={12} />,

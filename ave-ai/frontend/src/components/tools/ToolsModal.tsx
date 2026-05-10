@@ -1,6 +1,6 @@
 import { X, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ALL_TOOLS } from "../../tools/index";
+import { ALL_TOOLS } from "../../../../agents/tools/index";
 import { useSettings } from "../../store/settings";
 import { Switch } from "@/components/ui/switch";
 

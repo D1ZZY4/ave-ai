@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Bot, Sparkles, Terminal, Shield, Eye, Flame, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettings } from "../store/settings";
-import { ALL_PERSONAS } from "../personas/index";
+import { ALL_PERSONAS } from "../../../agents/personas/index";
 
 const PERSONA_ICONS: Record<string, React.ReactNode> = {
   "ave-prime": <Bot size={14} />,

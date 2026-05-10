@@ -10,7 +10,7 @@ import { SkillsModal } from "../components/skills/SkillsModal";
 import { ToolsModal } from "../components/tools/ToolsModal";
 import { useChat } from "../store/chat";
 import { useChatActions } from "../hooks/useChat";
-import { detectSkill } from "../skills/index";
+import { detectSkill } from "../../../agents/skills/index";
 
 interface HomeProps {
   onChatStarted: () => void;

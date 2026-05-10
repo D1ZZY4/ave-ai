@@ -1,6 +1,6 @@
 import { X, Zap, Code2, List, Sparkles, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ALL_SKILLS } from "../../skills/index";
+import { ALL_SKILLS } from "../../../../agents/skills/index";
 
 const SKILL_ICONS: Record<string, React.ReactNode> = {
   general: <Zap size={18} />,

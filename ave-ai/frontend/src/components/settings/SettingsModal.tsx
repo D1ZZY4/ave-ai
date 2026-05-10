@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useSettings, type AppTheme } from "../../store/settings";
 import { useModels } from "../../hooks/useModels";
 import { Switch } from "@/components/ui/switch";
-import { ALL_PERSONAS } from "../../personas";
+import { ALL_PERSONAS } from "../../../../agents/personas/index";
 
 interface SettingsModalProps {
   isOpen: boolean;
