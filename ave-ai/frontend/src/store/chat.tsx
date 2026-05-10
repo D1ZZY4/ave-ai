@@ -33,6 +33,20 @@ export interface ProcessStep {
   meta?: Record<string, unknown>;
 }
 
+/**
+ * flow-18 diagram 1: Feedback per assistant message.
+ */
+export interface FeedbackEntry {
+  messageId: string;
+  rating: "positive" | "negative";
+  reason?: string;
+  comment?: string;
+  timestamp: number;
+  personaUsed?: string;
+  modeUsed?: AgentMode;
+  toolCallsUsed?: string[];
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -43,6 +57,7 @@ export interface Message {
   model?: string;
   tokenCount?: number;
   images?: string[];
+  feedback?: "positive" | "negative";
 }
 
 export interface ChatSession {
@@ -58,6 +73,7 @@ export interface ChatSession {
   greetingDone?: boolean;
   totalTokens?: number;
   thinkingSteps?: ThinkingStep[];
+  feedback?: FeedbackEntry[];
 }
 
 interface ChatContextValue {
@@ -67,6 +83,7 @@ interface ChatContextValue {
   createSession: (model: string, persona: string, skill: string) => string;
   setActiveSession: (id: string | null) => void;
   deleteSession: (id: string) => void;
+  deleteAllSessions: () => void;
   addMessage: (sessionId: string, msg: Omit<Message, "id" | "timestamp">) => string;
   updateMessage: (sessionId: string, msgId: string, patch: Partial<Message>) => void;
   deleteMessage: (sessionId: string, msgId: string) => void;
@@ -74,6 +91,7 @@ interface ChatContextValue {
   updateSessionTokens: (sessionId: string, tokens: number) => void;
   setGreetingDone: (sessionId: string) => void;
   setSessionMode: (sessionId: string, mode: AgentMode) => void;
+  recordFeedback: (sessionId: string, entry: FeedbackEntry) => void;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -103,7 +121,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           id, title: "New conversation", messages: [],
           createdAt: Date.now(), updatedAt: Date.now(),
           model, persona, skill,
-          mode: "fast", greetingDone: false, totalTokens: 0, thinkingSteps: [],
+          mode: "fast", greetingDone: false, totalTokens: 0, thinkingSteps: [], feedback: [],
         },
         ...prev,
       ]);
@@ -124,6 +142,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     },
     [persist]
   );
+
+  const deleteAllSessions = useCallback(() => {
+    persist(() => []);
+    setActiveSessionIdState(null);
+  }, [persist]);
 
   const addMessage = useCallback(
     (sessionId: string, msg: Omit<Message, "id" | "timestamp">): string => {
@@ -204,16 +227,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [persist]
   );
 
+  const recordFeedback = useCallback(
+    (sessionId: string, entry: FeedbackEntry) => {
+      persist((prev) =>
+        prev.map((s) => {
+          if (s.id !== sessionId) return s;
+          const existing = (s.feedback ?? []).filter((f) => f.messageId !== entry.messageId);
+          return {
+            ...s,
+            feedback: [...existing, entry],
+            messages: s.messages.map((m) =>
+              m.id === entry.messageId ? { ...m, feedback: entry.rating } : m
+            ),
+          };
+        })
+      );
+    },
+    [persist]
+  );
+
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
 
   return (
     <ChatContext.Provider
       value={{
         sessions, activeSessionId, activeSession,
-        createSession, setActiveSession, deleteSession,
+        createSession, setActiveSession, deleteSession, deleteAllSessions,
         addMessage, updateMessage, deleteMessage,
         updateSessionTitle, updateSessionTokens,
-        setGreetingDone, setSessionMode,
+        setGreetingDone, setSessionMode, recordFeedback,
       }}
     >
       {children}

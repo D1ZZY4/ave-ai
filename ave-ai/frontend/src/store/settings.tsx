@@ -19,6 +19,7 @@ interface Settings {
   systemPromptOverrides: Record<string, string>;
   autoGreeting: boolean;
   theme: AppTheme;
+  enableWebSearch: boolean;
 }
 
 interface SettingsContextValue {
@@ -42,6 +43,7 @@ const DEFAULT_SETTINGS: Settings = {
   systemPromptOverrides: {},
   autoGreeting: true,
   theme: "system",
+  enableWebSearch: false,
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);

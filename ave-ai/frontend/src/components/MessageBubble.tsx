@@ -1,16 +1,29 @@
+/**
+ * flow-9 diagram 9: MessageBubble — renders user and assistant messages.
+ * flow-18 diagram 1: Feedback row with thumbs-up/down on assistant messages.
+ */
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Copy, Check, RotateCcw, Edit2, Coins } from "lucide-react";
+import { Copy, Check, RotateCcw, Edit2, Coins, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useState } from "react";
 import type { Message } from "../store/chat";
+import { useChat } from "../store/chat";
 import { ActivityLog } from "./ActivityLog";
 import { ChoiceCards } from "./ChoiceCards";
 import { QuestionForm } from "./QuestionForm";
 import { parseResponse } from "../helpers/parse-response";
 import { useSettings } from "../store/settings";
 import { cn } from "@/lib/utils";
+
+const NEGATIVE_REASONS = [
+  "Not helpful",
+  "Too verbose",
+  "Incorrect",
+  "Off-topic",
+  "Other",
+];
 
 function CopyButton({ text, className }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false);
@@ -122,8 +135,117 @@ function Prose({ content, isStreaming }: { content: string; isStreaming?: boolea
   );
 }
 
+/**
+ * flow-18 diagram 1: Feedback buttons for assistant messages.
+ */
+function FeedbackRow({
+  messageId,
+  sessionId,
+  existingFeedback,
+}: {
+  messageId: string;
+  sessionId: string;
+  existingFeedback?: "positive" | "negative";
+}) {
+  const { recordFeedback, activeSession } = useChat();
+  const [showReasonDialog, setShowReasonDialog] = useState(false);
+  const [given, setGiven] = useState<"positive" | "negative" | null>(
+    existingFeedback ?? null
+  );
+
+  const handlePositive = () => {
+    if (given) return;
+    setGiven("positive");
+    recordFeedback(sessionId, {
+      messageId,
+      rating: "positive",
+      timestamp: Date.now(),
+      personaUsed: activeSession?.persona,
+      modeUsed: activeSession?.mode,
+    });
+  };
+
+  const handleNegativeWithReason = (reason: string) => {
+    setGiven("negative");
+    setShowReasonDialog(false);
+    recordFeedback(sessionId, {
+      messageId,
+      rating: "negative",
+      reason,
+      timestamp: Date.now(),
+      personaUsed: activeSession?.persona,
+      modeUsed: activeSession?.mode,
+    });
+  };
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-0.5">
+        <button
+          onClick={handlePositive}
+          disabled={!!given}
+          title="Helpful"
+          className={cn(
+            "p-1 rounded transition-colors",
+            given === "positive"
+              ? "text-green-400"
+              : given
+              ? "text-[hsl(265_15%_30%)] cursor-not-allowed"
+              : "text-[hsl(265_15%_48%)] hover:text-green-400 hover:bg-[hsl(260_20%_18%)]"
+          )}
+        >
+          <ThumbsUp size={11} fill={given === "positive" ? "currentColor" : "none"} />
+        </button>
+        <button
+          onClick={() => {
+            if (given) return;
+            setShowReasonDialog(true);
+          }}
+          disabled={!!given}
+          title="Not helpful"
+          className={cn(
+            "p-1 rounded transition-colors",
+            given === "negative"
+              ? "text-red-400"
+              : given
+              ? "text-[hsl(265_15%_30%)] cursor-not-allowed"
+              : "text-[hsl(265_15%_48%)] hover:text-red-400 hover:bg-[hsl(260_20%_18%)]"
+          )}
+        >
+          <ThumbsDown size={11} fill={given === "negative" ? "currentColor" : "none"} />
+        </button>
+      </div>
+
+      {/* Reason dialog */}
+      {showReasonDialog && (
+        <div className="absolute left-0 bottom-full mb-1 z-50 bg-[hsl(258_28%_9%)] border border-[hsl(260_18%_18%)] rounded-2xl shadow-xl p-3 min-w-[180px]">
+          <div className="text-[9px] text-[hsl(265_15%_40%)] mb-2 uppercase tracking-wider font-semibold">Why not helpful?</div>
+          <div className="space-y-0.5">
+            {NEGATIVE_REASONS.map((r) => (
+              <button
+                key={r}
+                onClick={() => handleNegativeWithReason(r)}
+                className="w-full text-left px-2.5 py-1.5 text-[10px] text-[hsl(270_20%_80%)] hover:bg-[hsl(260_20%_13%)] rounded-lg transition-colors"
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowReasonDialog(false)}
+            className="mt-1.5 w-full text-[9px] text-[hsl(265_15%_36%)] hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface MessageBubbleProps {
   message: Message;
+  sessionId: string;
   onSend: (content: string) => void;
   onRetry?: () => void;
   onEdit?: (content: string) => void;
@@ -133,7 +255,7 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({
-  message, onSend, onRetry, onEdit,
+  message, sessionId, onSend, onRetry, onEdit,
   isLastMessage, isLastUserMessage, globalStreaming,
 }: MessageBubbleProps) {
   const { settings } = useSettings();
@@ -273,7 +395,7 @@ export function MessageBubble({
         </div>
       ) : null}
 
-      {/* Message actions (copy + retry) */}
+      {/* Message actions: copy + retry + feedback */}
       {hasContent && !isStreaming && (
         <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <CopyButton text={message.content} />
@@ -292,6 +414,15 @@ export function MessageBubble({
               {message.tokenCount.toLocaleString()}
             </span>
           )}
+
+          {/* flow-18 #1: Feedback buttons */}
+          <div className="ml-auto">
+            <FeedbackRow
+              messageId={message.id}
+              sessionId={sessionId}
+              existingFeedback={message.feedback}
+            />
+          </div>
         </div>
       )}
     </div>

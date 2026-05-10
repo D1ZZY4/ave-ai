@@ -1,9 +1,17 @@
 /**
  * Diagram 10, 14, 17, 26, 27: Tool Registry with retry, caching, and rate limiting.
  * All tool calls go through executeTool() which handles the full lifecycle.
+ * flow-3 #24: All tools registered here.
+ * flow-16 #4: archive tool added.
  */
 import { calculatorTool } from "./calculator";
 import { currentTimeTool } from "./current-time";
+import { countTool } from "./count";
+import { webStatusTool } from "./if-web-enabled-or-disabled";
+import { readFileTool } from "./read-file";
+import { writeFileTool } from "./write-file";
+import { pdfTool } from "./pdf";
+import { archiveTool } from "./archive";
 import { webSearchTool } from "../web/web-search";
 import type { OllamaTool } from "../helpers/ollama";
 import { toolResultCache, makeCacheKey } from "../helpers/cache";
@@ -22,6 +30,12 @@ export interface ToolDefinition {
 export const ALL_TOOLS: ToolDefinition[] = [
   { ...calculatorTool, cacheable: true, cacheTtlMs: 600_000 },
   { ...currentTimeTool, cacheable: false },
+  { ...countTool, cacheable: false },
+  { ...webStatusTool, cacheable: false },
+  { ...readFileTool, cacheable: false },
+  { ...writeFileTool, cacheable: false },
+  { ...pdfTool, cacheable: false },
+  { ...archiveTool, cacheable: false },
   { ...webSearchTool, cacheable: true, cacheTtlMs: 120_000 },
 ];
 
@@ -98,4 +112,7 @@ export async function executeTool(
   }
 }
 
-export { calculatorTool, currentTimeTool, webSearchTool };
+export {
+  calculatorTool, currentTimeTool, countTool, webStatusTool,
+  readFileTool, writeFileTool, pdfTool, archiveTool, webSearchTool,
+};

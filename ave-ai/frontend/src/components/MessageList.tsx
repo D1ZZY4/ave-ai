@@ -5,14 +5,14 @@ import { MessageBubble } from "./MessageBubble";
 
 interface MessageListProps {
   messages: Message[];
+  sessionId: string;
   onSend: (content: string, images?: string[]) => void;
   onRetry?: (lastUserContent: string) => void;
   onEdit?: (msgId: string, newContent: string) => void;
-  /** Diagram 47: Message ID to highlight after search navigation */
   highlightMsgId?: string;
 }
 
-export function MessageList({ messages, onSend, onRetry, onEdit, highlightMsgId }: MessageListProps) {
+export function MessageList({ messages, sessionId, onSend, onRetry, onEdit, highlightMsgId }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastLen = useRef(0);
 
@@ -54,6 +54,7 @@ export function MessageList({ messages, onSend, onRetry, onEdit, highlightMsgId 
           >
             <MessageBubble
               message={msg}
+              sessionId={sessionId}
               onSend={onSend}
               isLastMessage={msg.id === lastMsgId}
               isLastUserMessage={msg.id === lastUserMsg?.id}

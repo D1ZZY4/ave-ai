@@ -2,7 +2,7 @@
  * Diagram 29, 30: Service Worker — offline detection, queue, and PWA caching.
  * Caches static assets, queues AI requests when offline, replays on reconnect.
  */
-const CACHE_NAME = "ave-ai-v2";
+const CACHE_NAME = "ave-ai-v3";
 const STATIC_ASSETS = ["/", "/favicon.svg", "/manifest.json"];
 const OFFLINE_QUEUE_KEY = "ave-ai-offline-queue";
 
