@@ -5,6 +5,7 @@ import { useState, useMemo } from "react";
 import { X, Search, Download, Trash2, AlertTriangle, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat, type ChatSession } from "../../store/chat";
+import { jsPDF } from "jspdf";
 
 function exportToMarkdown(session: ChatSession) {
   const lines = [`# ${session.title}`, `> ${new Date(session.createdAt).toLocaleString()}`, ""];
@@ -28,6 +29,48 @@ function exportToJSON(session: ChatSession) {
   a.download = `${session.title.replace(/[^a-z0-9]/gi, "-")}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function exportToPDF(session: ChatSession) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 40;
+  const maxW = pageW - margin * 2;
+  let y = 60;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text(session.title, margin, y);
+  y += 20;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(120, 100, 160);
+  doc.text(new Date(session.createdAt).toLocaleString(), margin, y);
+  y += 24;
+
+  for (const msg of session.messages) {
+    if (y > 760) { doc.addPage(); y = 40; }
+    const isUser = msg.role === "user";
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(isUser ? 160 : 100, isUser ? 100 : 140, isUser ? 220 : 180);
+    doc.text(isUser ? "You" : "Ave AI", margin, y);
+    y += 14;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(60, 55, 80);
+    const lines = doc.splitTextToSize(msg.content.replace(/[*#`]/g, ""), maxW);
+    for (const line of lines) {
+      if (y > 760) { doc.addPage(); y = 40; }
+      doc.text(line, margin, y);
+      y += 12;
+    }
+    y += 8;
+  }
+
+  doc.save(`${session.title.replace(/[^a-z0-9]/gi, "-")}.pdf`);
 }
 
 interface HistoryModalProps {
@@ -162,6 +205,10 @@ export function HistoryModal({ isOpen, onClose, onSelect }: HistoryModalProps) {
                               onClick={(e) => { e.stopPropagation(); exportToMarkdown(s); setExportMenu(null); }}
                               className="block w-full text-left px-3 py-2 text-[10px] text-[hsl(270_20%_85%)] hover:bg-[hsl(260_20%_13%)] whitespace-nowrap"
                             >Markdown</button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); exportToPDF(s); setExportMenu(null); }}
+                              className="block w-full text-left px-3 py-2 text-[10px] text-[hsl(270_20%_85%)] hover:bg-[hsl(260_20%_13%)] whitespace-nowrap"
+                            >PDF</button>
                           </div>
                         )}
                       </div>

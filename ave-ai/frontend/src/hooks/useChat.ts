@@ -3,7 +3,7 @@
  * Full orchestrator — input validation, health check, streaming, tool retry,
  * session compression, token tracking, output validation, notifications.
  */
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useChat as useChatStore, type ProcessStep } from "../store/chat";
 import { useSettings } from "../store/settings";
@@ -46,6 +46,13 @@ export function useChatActions() {
     updateSessionTokens, activeSessionId, activeSession,
   } = useChatStore();
   const abortRef = useRef<AbortController | null>(null);
+
+  // ── flow-8 diagram 2: Graceful shutdown — save state & abort on tab close ─
+  useEffect(() => {
+    const handler = () => { abortRef.current?.abort(); };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
 
   const stopGeneration = useCallback(() => {
     abortRef.current?.abort();
@@ -141,11 +148,16 @@ export function useChatActions() {
       const personaOverride = settings.systemPromptOverrides?.[settings.selectedPersona];
       const personaPrompt = personaOverride || persona.systemPrompt;
 
+      // ── flow-12 diagram 5: Load long-term memory facts for prompt injection ─
+      const memoryFacts = settings.memoryEnabled ? await loadFacts() : [];
+      const memoryBlock = formatFactsForPrompt(memoryFacts);
+
       // ── Build layered system prompt (Diagram 23) ────────────────────────
       const systemPrompt = [
         `[SKILL: ${skill.name.toUpperCase()}]\n${skill.systemPrompt}`,
         `[PERSONA: ${persona.name.toUpperCase()}]\n${personaPrompt}`,
         `[RULES]\n${rulesPrompt}`,
+        memoryBlock ? `[MEMORY]\n${memoryBlock}` : "",
       ].filter(Boolean).join("\n\n---\n\n");
 
       // ── Build message history ───────────────────────────────────────────
@@ -379,6 +391,13 @@ export function useChatActions() {
             "Ave AI",
             finalContent.replace(/[#*`]/g, "").slice(0, 80) || "Response ready"
           );
+        }
+
+        // ── flow-12 diagram 4: Extract & persist new facts from response ─
+        if (settings.memoryEnabled && finalContent.length > 0) {
+          extractFacts(finalContent, memoryFacts, settings.baseUrl, settings.selectedModel)
+            .then(({ facts }) => Promise.all(facts.map((f) => saveFact(f))))
+            .catch(() => {});
         }
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {

@@ -417,6 +417,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 checked={settings.enableWebSearch}
                 onChange={(v) => updateSettings({ enableWebSearch: v })}
               />
+              <ToggleRow
+                label="Long-term memory"
+                description="Extract and inject user facts across conversations via IndexedDB"
+                checked={settings.memoryEnabled}
+                onChange={(v) => updateSettings({ memoryEnabled: v })}
+              />
             </div>
           )}
 
