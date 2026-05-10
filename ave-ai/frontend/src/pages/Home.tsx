@@ -47,7 +47,7 @@ export function Home({ onChatStarted }: HomeProps) {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <Header onMenuOpen={() => setSidebarOpen(true)} onSettings={() => setSettingsOpen(true)} />
+      <Header onMenuOpen={() => setSidebarOpen(true)} />
 
       <Sidebar
         isOpen={sidebarOpen}

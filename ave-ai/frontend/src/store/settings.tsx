@@ -21,6 +21,7 @@ interface Settings {
   theme: AppTheme;
   enableWebSearch: boolean;
   memoryEnabled: boolean;
+  enabledSkills: string[];
 }
 
 interface SettingsContextValue {
@@ -46,6 +47,7 @@ const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   enableWebSearch: false,
   memoryEnabled: true,
+  enabledSkills: ["general", "developer", "summary", "prd"],
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
